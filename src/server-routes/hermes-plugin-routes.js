@@ -445,21 +445,8 @@ function sendAppAttachmentPreview(response, db, workspaceId, attachmentId) {
     response.end(JSON.stringify({ ok: false, error: 'ATTACHMENT_PREVIEW_UNSUPPORTED' }));
     return true;
   }
-  const { spawnSync } = require('node:child_process');
-  const path = require('node:path');
-  const result = spawnSync('powershell.exe', [
-    '-NoProfile',
-    '-ExecutionPolicy',
-    'Bypass',
-    '-File',
-    path.join(process.cwd(), 'scripts', 'render-docx-preview.ps1'),
-    '-InputPath',
-    resolved.filePath
-  ], {
-    encoding: 'utf8',
-    maxBuffer: 8 * 1024 * 1024
-  });
-  if (result.status !== 0 || !result.stdout) {
+  const html = renderDocxPreview(resolved.filePath);
+  if (!html) {
     response.writeHead(422, { 'Content-Type': 'application/json; charset=utf-8' });
     response.end(JSON.stringify({ ok: false, error: 'ATTACHMENT_PREVIEW_FAILED' }));
     return true;
@@ -469,8 +456,30 @@ function sendAppAttachmentPreview(response, db, workspaceId, attachmentId) {
     'Cache-Control': 'private, max-age=300',
     'X-Content-Type-Options': 'nosniff'
   });
-  response.end(result.stdout);
+  response.end(html);
   return true;
+}
+
+function renderDocxPreview(filePath) {
+  const { spawnSync } = require('node:child_process');
+  const path = require('node:path');
+  const pythonScript = path.join(process.cwd(), 'scripts', 'render-docx-preview.py');
+  const powershellScript = path.join(process.cwd(), 'scripts', 'render-docx-preview.ps1');
+  const candidates = [
+    { command: 'python3', args: [pythonScript, filePath] },
+    { command: 'python', args: [pythonScript, filePath] },
+    { command: 'powershell.exe', args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', powershellScript, '-InputPath', filePath] }
+  ];
+  for (const candidate of candidates) {
+    const result = spawnSync(candidate.command, candidate.args, {
+      encoding: 'utf8',
+      maxBuffer: 8 * 1024 * 1024
+    });
+    if (result.status === 0 && result.stdout) {
+      return result.stdout;
+    }
+  }
+  return '';
 }
 
 function resolveAppAttachment(db, workspaceId, attachmentId, options = {}) {
