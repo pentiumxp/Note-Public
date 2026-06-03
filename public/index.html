@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Note</title>
+    <script>
+      if (new URLSearchParams(window.location.search).get('embed') === 'hermes') {
+        document.documentElement.dataset.embed = 'hermes';
+      }
+    </script>
+    <link rel="stylesheet" href="./styles.css?v=20260603-back-perf">
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <aside class="rail" aria-label="主导航">
+        <button class="brand" aria-label="Note 首页">N</button>
+        <button class="rail-button is-active" data-view="home" title="首页">⌂</button>
+        <button class="rail-button" data-view="notes" title="笔记">▤</button>
+        <button class="rail-button" data-view="tasks" title="待办">☑</button>
+        <button class="rail-button" data-view="files" title="附件">▧</button>
+      </aside>
+
+      <aside class="sidebar">
+        <div class="account-card">
+          <div class="avatar">许</div>
+          <div>
+            <div class="account-name">本地工作空间</div>
+            <div class="account-state">离线优先 · 本地已保存</div>
+          </div>
+        </div>
+        <button class="new-note-button" id="new-note-button">新建</button>
+
+        <label class="search-box">
+          <span>搜索笔记</span>
+          <input id="search-input" type="search" placeholder="标题、正文、标签、附件">
+        </label>
+
+        <section class="nav-section">
+          <div class="section-title">快捷入口</div>
+          <button class="nav-row is-selected" data-filter="all">全部笔记 <span id="count-all">0</span></button>
+          <button class="nav-row" data-filter="shortcuts">快捷方式 <span id="count-shortcuts">0</span></button>
+          <button class="nav-row" data-filter="tasks">待办事项 <span id="count-tasks">0</span></button>
+          <button class="nav-row" data-filter="attachments">附件 <span id="count-attachments">0</span></button>
+          <button class="nav-row" data-filter="trash">废纸篓 <span id="count-trash">0</span></button>
+        </section>
+
+        <section class="nav-section">
+          <div class="section-title">笔记本</div>
+          <div id="notebook-list"></div>
+        </section>
+
+        <section class="nav-section">
+          <div class="section-title">标签</div>
+          <div id="tag-list" class="tag-list"></div>
+        </section>
+      </aside>
+
+      <main class="workspace">
+        <section class="home-surface" id="home-surface">
+          <header class="mobile-home-head">
+            <div class="home-topline">
+              <button class="avatar mobile-avatar" aria-label="账号">许</button>
+              <div class="mobile-title">全部笔记</div>
+              <div class="home-actions" aria-label="首页操作">
+                <button title="会员">♕</button>
+                <button title="识别">◎</button>
+                <button title="设置">⋯</button>
+              </div>
+            </div>
+            <label class="home-search">
+              <span>⌕</span>
+              <input id="mobile-search-input" type="search" placeholder="搜索笔记">
+              <button type="button" data-filter-shortcut="shortcuts">★</button>
+              <button type="button" data-filter-shortcut="attachments">▧</button>
+              <button type="button" data-filter-shortcut="tasks">☑</button>
+            </label>
+          </header>
+
+          <div class="quick-create-strip" aria-label="快捷创建">
+            <button data-create-kind="super"><span class="quick-icon green">✎</span><strong>超级笔记</strong><small>结构化记录</small></button>
+            <button data-create-kind="photo"><span class="quick-icon blue">▣</span><strong>拍照</strong><small>图片笔记</small></button>
+            <button data-create-kind="scan"><span class="quick-icon amber">▥</span><strong>扫描</strong><small>文档留存</small></button>
+            <button data-create-kind="attachment"><span class="quick-icon gray">↥</span><strong>附件</strong><small>文件归档</small></button>
+          </div>
+
+          <div class="list-toolbar">
+            <div>
+              <div class="eyebrow" id="list-subtitle">最近更新</div>
+              <h1 id="list-title">笔记</h1>
+            </div>
+            <select id="sort-select" aria-label="排序">
+              <option value="updated">最近更新</option>
+              <option value="created">创建时间</option>
+              <option value="title">标题</option>
+            </select>
+          </div>
+          <div id="note-list" class="note-list"></div>
+        </section>
+
+        <section class="editor-panel" id="editor-panel">
+          <div class="editor-topbar">
+            <button class="back-button" id="close-editor-button" aria-label="返回">‹</button>
+            <div class="save-state" id="sync-status">本地已保存</div>
+            <div class="editor-actions">
+              <button class="icon-button" data-command="bold" title="加粗">B</button>
+              <button class="icon-button" data-command="insertUnorderedList" title="项目符号">•</button>
+              <button class="icon-button" id="shortcut-button" title="快捷方式">★</button>
+              <button class="icon-button" id="trash-button" title="删除">⌫</button>
+              <button class="icon-button" id="restore-button" hidden title="恢复">↩</button>
+            </div>
+          </div>
+
+          <div class="editor-scroll">
+            <input id="title-input" class="title-input" placeholder="无标题笔记">
+            <div class="meta-grid">
+              <label>笔记本 <select id="notebook-select"></select></label>
+              <label>标签 <input id="tag-input" placeholder="用逗号分隔"></label>
+            </div>
+            <article id="body-editor" class="body-editor" contenteditable="true" aria-label="笔记正文"></article>
+
+            <section class="inline-section">
+              <div class="section-head">
+                <h2>附件</h2>
+                <div class="section-actions">
+                  <button id="add-photo-button">照片</button>
+                  <button id="add-attachment-button">文件</button>
+                </div>
+              </div>
+              <div id="attachment-list" class="attachment-list"></div>
+            </section>
+
+            <section class="inline-section">
+              <div class="section-head">
+                <h2>待办</h2>
+                <button id="add-task-button">添加</button>
+              </div>
+              <div id="task-list" class="task-list"></div>
+            </section>
+          </div>
+        </section>
+      </main>
+
+      <nav class="mobile-tabs" aria-label="移动导航">
+        <button data-mobile-tab="home" class="is-active"><span>⌂</span>首页</button>
+        <button data-mobile-tab="search"><span>⌕</span>搜索</button>
+        <button id="mobile-create-button" class="mobile-create">＋</button>
+        <button data-mobile-tab="templates"><span>▦</span>模板</button>
+        <button data-mobile-tab="me"><span>◌</span>我的</button>
+      </nav>
+    </div>
+
+    <div id="create-sheet" class="sheet" hidden>
+      <button class="sheet-backdrop" id="sheet-backdrop" aria-label="关闭"></button>
+      <section class="sheet-panel" aria-label="新建菜单">
+        <div class="sheet-handle"></div>
+        <div class="sheet-title">新建</div>
+        <div class="sheet-grid">
+          <button data-create-kind="text"><span class="sheet-icon text">✎</span><strong>文字笔记</strong><small>普通富文本记录</small></button>
+          <button data-create-kind="super"><span class="sheet-icon super">▤</span><strong>超级笔记</strong><small>标题、正文、行动项</small></button>
+          <button data-create-kind="photo"><span class="sheet-icon photo">▣</span><strong>拍照</strong><small>添加图片附件</small></button>
+          <button data-create-kind="scan"><span class="sheet-icon scan">▥</span><strong>扫描</strong><small>文档扫描占位</small></button>
+          <button data-create-kind="audio"><span class="sheet-icon audio">●</span><strong>录音</strong><small>录音附件占位</small></button>
+          <button data-create-kind="attachment"><span class="sheet-icon file">↥</span><strong>附件</strong><small>添加文件附件</small></button>
+        </div>
+      </section>
+    </div>
+
+    <input id="photo-input" type="file" accept="image/*" hidden>
+    <input id="file-input" type="file" hidden>
+    <script src="./app.js?v=20260603-back-perf"></script>
+  </body>
+</html>

@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Runtime and local state
+.env
+.env.*
+!.env.example
+data/
+runtime/
+logs/
+tmp/
+imports/
+*.log
+
+# Build and coverage outputs
+dist/
+build/
+coverage/
+.nyc_output/
+__pycache__/
+*.pyc
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
