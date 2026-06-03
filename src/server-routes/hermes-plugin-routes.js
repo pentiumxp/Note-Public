@@ -139,7 +139,8 @@ function createHermesPluginRoutes({ pluginService, db, idGenerator, clock, appWo
         workspaceId,
         authorization: request.headers.authorization
       });
-      return await handler(makeNoteService(workspace.workspace_id), workspace);
+      await handler(makeNoteService(workspace.workspace_id), workspace);
+      return true;
     } catch (error) {
       return sendError(response, error);
     }
