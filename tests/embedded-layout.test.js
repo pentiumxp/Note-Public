@@ -30,5 +30,6 @@ test("embedded mobile shell owns only the Note footer row", () => {
   assert.match(css, /html\[data-embed="hermes"\] \.workspace\s*\{[^}]*min-height:\s*0;[^}]*height:\s*100%;[^}]*overflow:\s*hidden;/s);
   assert.match(css, /html\[data-embed="hermes"\] \.home-surface\s*\{[^}]*overflow:\s*auto;/s);
   assert.match(css, /html\[data-embed="hermes"\] \.note-list\s*\{[^}]*overflow:\s*visible;/s);
-  assert.match(css, /html\[data-embed="hermes"\] \.mobile-tabs\s*\{[^}]*position:\s*sticky;[^}]*bottom:\s*0;/s);
+  assert.match(css, /html\[data-embed="hermes"\] \.mobile-tabs\s*\{[^}]*position:\s*relative;[^}]*min-height:\s*66px;[^}]*padding-bottom:\s*0;/s);
+  assert.match(css, /html\[data-embed="hermes"\] \.editor-scroll\s*\{[^}]*padding-bottom:\s*88px;/s);
 });

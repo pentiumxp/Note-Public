@@ -104,6 +104,8 @@ function wireEvents() {
   elements.titleInput.addEventListener('input', updateSelectedFromEditor);
   elements.bodyEditor.addEventListener('input', updateSelectedFromEditor);
   elements.bodyEditor.addEventListener('click', handleBodyEditorClick);
+  elements.noteList.addEventListener('click', handleNoteListAttachmentClick, true);
+  document.addEventListener('error', handlePreviewImageFallback, true);
   elements.notebookSelect.addEventListener('change', updateSelectedFromEditor);
   elements.tagInput.addEventListener('change', updateSelectedFromEditor);
 
@@ -218,8 +220,15 @@ function currentPluginRoute() {
 function emitNavigationState() {
   const route = currentPluginRoute();
   const canGoBack = route.surface !== 'home';
-  postPluginMessage('note.plugin.navigation', { canGoBack, route });
-  postHostEvent('plugin:navigationChanged', { canGoBack, surface: route.surface });
+  const previewFullscreen = route.surface === 'image_preview';
+  postPluginMessage('note.plugin.navigation', {
+    canGoBack,
+    route,
+    previewFullscreen,
+    fullscreenPreview: previewFullscreen,
+    preview: previewFullscreen ? { kind: 'image', fullscreen: true } : { fullscreen: false }
+  });
+  postHostEvent('plugin:navigationChanged', { canGoBack, surface: route.surface, previewFullscreen });
 }
 
 function handlePluginBack() {
@@ -428,10 +437,12 @@ function renderNoteList() {
 
     const actions = document.createElement('div');
     actions.className = 'note-swipe-actions';
-    actions.innerHTML = '<button class="note-delete-action" type="button">删除</button>';
+    actions.innerHTML = '<button class="note-delete-action" type="button" aria-label="删除"><span aria-hidden="true" class="trash-icon"></span></button>';
 
-    const button = document.createElement('button');
+    const button = document.createElement('div');
     button.className = 'note-row note-swipe-content';
+    button.setAttribute('role', 'button');
+    button.setAttribute('tabindex', '0');
     const attachment = (note.attachments || [])[0];
     button.innerHTML = `
       <div class="note-main">
@@ -446,6 +457,23 @@ function renderNoteList() {
       </div>
       <div class="note-thumb">${attachmentPreviewMarkup(attachment)}</div>
     `;
+    const mediaStrip = buildNoteListAttachmentStrip(note);
+    if (mediaStrip) {
+      const snippet = button.querySelector('.note-row-snippet');
+      button.querySelector('.note-main')?.insertBefore(mediaStrip, snippet);
+    }
+    if ((note.attachments || []).length) {
+      button.querySelector('.note-row-meta .meta-chip:last-child')?.remove();
+    }
+    const snippet = button.querySelector('.note-row-snippet');
+    const listSnippet = noteListSnippetText(note);
+    if (snippet && listSnippet) {
+      snippet.textContent = listSnippet;
+    }
+    if (snippet && !listSnippet) {
+      snippet.remove();
+    }
+    button.querySelector('.note-thumb')?.remove();
     button.addEventListener('click', () => {
       if (row.dataset.swipeSuppressClick === '1') {
         row.dataset.swipeSuppressClick = '0';
@@ -504,7 +532,58 @@ function updateRenderedNoteRow(note) {
   const title = row.querySelector('.note-row-title');
   const snippet = row.querySelector('.note-row-snippet');
   if (title) title.textContent = note.title || 'Untitled note';
-  if (snippet) snippet.textContent = textFromHtml(note.body) || note.snippet || '';
+  if (snippet) snippet.textContent = noteListSnippetText(note);
+}
+
+function noteListSnippetText(note) {
+  const text = (textFromHtml(note.body) || note.snippet || '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  const compact = text.replace(/[\s·,，.。;；:：、]+/g, '');
+  if (/^(附件|图片|文件)+$/u.test(compact)) return '';
+  return text;
+}
+
+function buildNoteListAttachmentStrip(note) {
+  const attachments = (note.attachments || []).slice(0, 4);
+  if (!attachments.length) return null;
+  const strip = document.createElement('div');
+  strip.className = 'note-row-attachments';
+  for (const attachment of attachments) {
+    if (attachment.kind === 'image' && attachment.url) {
+      const preview = document.createElement('button');
+      preview.className = 'note-row-image-chip';
+      preview.type = 'button';
+      preview.dataset.attachmentId = attachment.id || '';
+      preview.setAttribute('aria-label', attachment.name || '图片');
+      preview.innerHTML = previewImageMarkup(attachment.thumbnailUrl || attachment.url, attachment.url, '', { lazy: true });
+      preview.addEventListener('click', (event) => {
+        event.stopPropagation();
+        openImagePreview(attachment.url, attachment.name || '图片');
+      });
+      strip.append(preview);
+      continue;
+    }
+    const chip = document.createElement(attachment.url ? 'button' : 'span');
+    chip.className = 'note-row-attachment-chip';
+    chip.dataset.attachmentId = attachment.id || '';
+    if (attachment.url) {
+      chip.type = 'button';
+      chip.setAttribute('aria-label', attachment.name || attachmentTypeInfo(attachment).label);
+      chip.addEventListener('click', (event) => {
+        event.stopPropagation();
+        openAttachmentPreview(attachment);
+      });
+    }
+    chip.innerHTML = attachmentIconMarkup(attachment, 'small');
+    strip.append(chip);
+  }
+  if ((note.attachments || []).length > attachments.length) {
+    const more = document.createElement('span');
+    more.className = 'note-row-attachment-chip';
+    more.textContent = `+${(note.attachments || []).length - attachments.length}`;
+    strip.append(more);
+  }
+  return strip;
 }
 
 function wireNoteSwipe(row, content, noteId) {
@@ -513,8 +592,24 @@ function wireNoteSwipe(row, content, noteId) {
   let offset = 0;
   let swiping = false;
   let pointerId = null;
+  let mouseTracking = false;
+
+  const trackMove = (clientX, clientY, event) => {
+    const dx = clientX - startX;
+    const dy = clientY - startY;
+    if (!swiping && dx < -8 && Math.abs(dx) > Math.abs(dy) * 1.15) {
+      swiping = true;
+      row.dataset.swipeSuppressClick = '1';
+      closeOtherSwipeRows(row);
+    }
+    if (!swiping) return;
+    event.preventDefault();
+    offset = Math.min(Math.max(-dx, 0), SWIPE_DELETE_WIDTH + 34);
+    setSwipeOffset(row, offset);
+  };
 
   content.addEventListener('pointerdown', (event) => {
+    if (event.target.closest('.note-row-image-chip')) return;
     if (event.button !== 0 && event.pointerType === 'mouse') return;
     startX = event.clientX;
     startY = event.clientY;
@@ -526,17 +621,7 @@ function wireNoteSwipe(row, content, noteId) {
 
   content.addEventListener('pointermove', (event) => {
     if (pointerId !== event.pointerId) return;
-    const dx = event.clientX - startX;
-    const dy = event.clientY - startY;
-    if (!swiping && dx < -8 && Math.abs(dx) > Math.abs(dy) * 1.15) {
-      swiping = true;
-      row.dataset.swipeSuppressClick = '1';
-      closeOtherSwipeRows(row);
-    }
-    if (!swiping) return;
-    event.preventDefault();
-    offset = Math.min(Math.max(-dx, 0), SWIPE_DELETE_WIDTH + 34);
-    setSwipeOffset(row, offset);
+    trackMove(event.clientX, event.clientY, event);
   });
 
   const finish = () => {
@@ -558,6 +643,28 @@ function wireNoteSwipe(row, content, noteId) {
 
   content.addEventListener('pointerup', finish);
   content.addEventListener('pointercancel', () => setSwipeOffset(row, 0));
+
+  const mouseMove = (event) => {
+    if (!mouseTracking) return;
+    trackMove(event.clientX, event.clientY, event);
+  };
+  const mouseFinish = () => {
+    window.removeEventListener('mousemove', mouseMove);
+    window.removeEventListener('mouseup', mouseFinish);
+    mouseTracking = false;
+    finish();
+  };
+  content.addEventListener('mousedown', (event) => {
+    if (event.target.closest('.note-row-image-chip')) return;
+    if (event.button !== 0) return;
+    startX = event.clientX;
+    startY = event.clientY;
+    offset = 0;
+    swiping = false;
+    mouseTracking = true;
+    window.addEventListener('mousemove', mouseMove);
+    window.addEventListener('mouseup', mouseFinish);
+  });
 }
 
 function setSwipeOffset(row, offset) {
@@ -675,6 +782,20 @@ function renderAttachments(note) {
       </div>
       <button class="icon-button" data-remove-attachment="${escapeHtml(attachment.id)}" title="移除">×</button>
     `;
+    if (attachment.url) {
+      row.classList.add('is-openable');
+      row.setAttribute('role', 'button');
+      row.setAttribute('tabindex', '0');
+      row.addEventListener('click', (event) => {
+        if (event.target.closest('[data-remove-attachment]')) return;
+        openAttachmentPreview(attachment);
+      });
+      row.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        openAttachmentPreview(attachment);
+      });
+    }
     row.querySelector('[data-remove-attachment]').addEventListener('click', () => {
       note.attachments = note.attachments.filter((item) => item.id !== attachment.id);
       touch(note);
@@ -865,18 +986,111 @@ function handleBodyEditorClick(event) {
   openImagePreview(target.dataset.imageUrl, target.dataset.imageName || '图片');
 }
 
+function handleNoteListAttachmentClick(event) {
+  const chip = event.target.closest('.note-row-image-chip,.note-row-attachment-chip');
+  if (!chip || !elements.noteList.contains(chip)) return;
+  const attachment = findAttachmentById(chip.dataset.attachmentId);
+  if (!attachment?.url) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (chip.classList.contains('note-row-image-chip')) {
+    openImagePreview(attachment.url, attachment.name || '图片');
+    return;
+  }
+  openAttachmentPreview(attachment);
+}
+
+function handlePreviewImageFallback(event) {
+  const image = event.target;
+  if (!image?.matches?.('img[data-fallback-src]')) return;
+  const fallback = image.dataset.fallbackSrc || '';
+  if (!fallback || image.src.endsWith(fallback)) return;
+  delete image.dataset.fallbackSrc;
+  image.src = fallback;
+}
+
+function findAttachmentById(attachmentId) {
+  if (!attachmentId) return null;
+  for (const note of state.notes || []) {
+    const attachment = (note.attachments || []).find((item) => item.id === attachmentId);
+    if (attachment) return attachment;
+  }
+  return null;
+}
+
 function openImagePreview(url, name) {
   if (!url) return;
+  openPreviewOverlay({
+    label: '图片预览',
+    content: `<img src="${escapeHtml(url)}" alt="${escapeHtml(name)}">`
+  });
+}
+
+function openAttachmentPreview(attachment) {
+  if (!attachment?.url) return;
+  const info = attachmentTypeInfo(attachment);
+  if (info.type === 'image') {
+    openImagePreview(attachment.url, attachment.name || info.label);
+    return;
+  }
+  if (info.type === 'pdf') {
+    const url = `${attachment.url}#toolbar=0&navpanes=0&view=FitH`;
+    openPreviewOverlay({
+      label: attachment.name || 'PDF',
+      overlayClass: 'file-preview-overlay',
+      panelClass: 'file-preview-panel pdf-preview-panel',
+      content: `
+        <iframe class="file-preview-frame pdf-preview-frame" src="${escapeHtml(url)}" title="${escapeHtml(attachment.name || 'PDF')}"></iframe>
+        <a class="file-preview-open file-preview-floating-action" href="${escapeHtml(attachment.url)}" target="_blank" rel="noopener">打开原文件</a>
+      `
+    });
+    return;
+  }
+  if (info.type === 'word' && attachment.previewUrl) {
+    openPreviewOverlay({
+      label: attachment.name || info.label,
+      overlayClass: 'file-preview-overlay',
+      panelClass: 'file-preview-panel document-preview-panel',
+      content: `
+        <iframe class="file-preview-frame word-preview-frame" src="${escapeHtml(attachment.previewUrl)}" title="${escapeHtml(attachment.name || info.label)}"></iframe>
+        <div class="file-preview-floating-actions">
+          <a class="file-preview-open" href="${escapeHtml(attachment.url)}" target="_blank" rel="noopener">打开原文件</a>
+          <a class="file-preview-open file-preview-secondary" href="${escapeHtml(attachment.url)}" download>下载</a>
+        </div>
+      `
+    });
+    return;
+  }
+  openPreviewOverlay({
+    label: attachment.name || info.label,
+    overlayClass: 'file-preview-overlay',
+    panelClass: 'file-preview-panel document-preview-panel',
+    content: `
+      <div class="file-preview-card">
+        ${attachmentIconMarkup(attachment, 'large')}
+        <div class="file-preview-title">${escapeHtml(attachment.name || info.label)}</div>
+        <div class="file-preview-subtitle">${escapeHtml(info.label)}${attachment.size ? ` · ${formatSize(attachment.size)}` : ''}</div>
+        <div class="file-preview-actions">
+          <a class="file-preview-open" href="${escapeHtml(attachment.url)}" target="_blank" rel="noopener">打开文件</a>
+          <a class="file-preview-open file-preview-secondary" href="${escapeHtml(attachment.url)}" download>下载</a>
+        </div>
+      </div>
+    `
+  });
+}
+
+function openPreviewOverlay({ label, content, overlayClass = '', panelClass = '' }) {
   const overlay = document.createElement('div');
-  overlay.className = 'image-preview-overlay';
+  overlay.className = `image-preview-overlay ${overlayClass}`.trim();
   overlay.innerHTML = `
     <button class="image-preview-backdrop" type="button" aria-label="关闭"></button>
-    <section class="image-preview-panel" aria-label="图片预览">
-      <div class="image-preview-head">
-        <span>${escapeHtml(name)}</span>
+    <section class="image-preview-panel ${escapeHtml(panelClass)}" aria-label="${escapeHtml(label)}">
+      <div class="image-preview-head" hidden>
+        <span>${escapeHtml(label)}</span>
         <button type="button" aria-label="关闭">×</button>
       </div>
-      <img src="${escapeHtml(url)}" alt="${escapeHtml(name)}">
+      <button class="image-preview-close" type="button" aria-label="Close">×</button>
+      ${content}
     </section>
   `;
   const close = () => {
@@ -884,7 +1098,7 @@ function openImagePreview(url, name) {
     emitNavigationState();
   };
   overlay.querySelector('.image-preview-backdrop').addEventListener('click', close);
-  overlay.querySelector('.image-preview-head button').addEventListener('click', close);
+  overlay.querySelector('.image-preview-close').addEventListener('click', close);
   document.body.append(overlay);
   emitNavigationState();
 }
@@ -972,9 +1186,39 @@ function seedState() {
 function attachmentPreviewMarkup(attachment) {
   if (!attachment) return '笔';
   const previewUrl = attachment.previewId ? sessionObjectUrls.get(attachment.previewId) : null;
-  if (previewUrl) return `<img src="${previewUrl}" alt="">`;
-  if (attachment.kind === 'image' && attachment.url) return `<img src="${escapeHtml(attachment.url)}" alt="">`;
-  return attachmentIcons[attachment.kind] || attachmentIcons.file;
+  if (previewUrl) return `<img src="${previewUrl}" alt="" loading="lazy" decoding="async">`;
+  if (attachment.kind === 'image' && attachment.url) return previewImageMarkup(attachment.thumbnailUrl || attachment.url, attachment.url, '', { lazy: true });
+  return attachmentIconMarkup(attachment, 'medium');
+}
+
+function previewImageMarkup(src, fallbackSrc = '', alt = '', options = {}) {
+  const fallbackAttr = fallbackSrc && fallbackSrc !== src ? ` data-fallback-src="${escapeHtml(fallbackSrc)}"` : '';
+  const loading = options.lazy ? ' loading="lazy"' : '';
+  return `<img src="${escapeHtml(src)}"${fallbackAttr} alt="${escapeHtml(alt)}"${loading} decoding="async">`;
+}
+
+function attachmentIconMarkup(attachment, size = 'medium') {
+  const info = attachmentTypeInfo(attachment);
+  return `<span class="file-type-icon file-type-${escapeHtml(info.type)} file-type-${escapeHtml(size)}" aria-hidden="true">${escapeHtml(info.short)}</span>`;
+}
+
+function attachmentTypeInfo(attachment = {}) {
+  const name = String(attachment.name || '').toLowerCase();
+  const mime = String(attachment.mime || attachment.type || '').toLowerCase();
+  if (attachment.kind === 'image' || mime.startsWith('image/')) return { type: 'image', short: '图', label: '图片' };
+  if (mime === 'application/pdf' || name.endsWith('.pdf')) return { type: 'pdf', short: 'PDF', label: 'PDF' };
+  if (mime.includes('word') || mime.includes('officedocument.wordprocessingml') || /\.(doc|docx)$/i.test(name)) {
+    return { type: 'word', short: 'W', label: 'Word 文档' };
+  }
+  if (mime.includes('excel') || mime.includes('spreadsheetml') || /\.(xls|xlsx)$/i.test(name)) {
+    return { type: 'excel', short: 'X', label: 'Excel 表格' };
+  }
+  if (mime.includes('powerpoint') || mime.includes('presentationml') || /\.(ppt|pptx)$/i.test(name)) {
+    return { type: 'ppt', short: 'P', label: '演示文稿' };
+  }
+  if (attachment.kind === 'audio' || mime.startsWith('audio/')) return { type: 'audio', short: '音', label: '音频' };
+  if (attachment.kind === 'document') return { type: 'document', short: '文', label: '文档' };
+  return { type: 'file', short: '□', label: '文件' };
 }
 
 function attachmentKindLabel(attachment) {

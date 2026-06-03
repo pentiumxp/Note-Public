@@ -192,6 +192,98 @@ Build a notes product that basically recreates China edition Yinxiang Biji/Evern
   - Performance harness: `firstRowsMs=120`, `openMs=75`, `initialRows=120`, `rowsAfterScroll=200`.
 - Static asset version is now `20260603-back-perf`.
 
+## Latest UI Repair - No Horizontal Drag And Footer Bottom Alignment - 2026-06-03
+
+- Locked page-level horizontal overflow in mobile and `embed=hermes` layouts:
+  - Root/body/app/workspace/home/editor containers now cap width and hide horizontal overflow.
+  - Mobile editor panel no longer sits offscreen with `translateX(100%)`; it uses overlay visibility/opacity so it does not double document width.
+- Adjusted embedded bottom tabs to match Hermes plugin footer geometry:
+  - `html[data-embed="hermes"] .mobile-tabs` is now the app-shell grid footer row with `position: relative`.
+  - Removed embedded safe-area bottom padding from the Note tabs; Hermes host owns its own footer/safe area.
+  - Embedded editor scroll bottom padding is fixed to Note-owned spacing only.
+- Added `scripts/no-horizontal-drag-harness.js` and `npm run visual:no-horizontal-drag`.
+- Latest Playwright evidence at mobile viewport 390x740:
+  - `document.scrollWidth=390` in home and editor states.
+  - Note bottom tabs bottom equals viewport bottom: gap `0px`.
+
+## Latest Attachment UI - Typed File Icons And Preview - 2026-06-03
+
+- Confirmed attachment storage model:
+  - SQLite stores attachment metadata only: `workspace_id`, `note_id`, `name`, `kind`, `size`, and `metadata_json`.
+  - Attachment bytes, including images, PDF, and Word files, live under `data/attachments/...`.
+  - `metadata_json.storageKey` points to the internal attachment file path segment.
+- Updated app attachment summaries so every attachment with `storageKey` receives a bounded app URL, not only images.
+- Added typed attachment icons in list chips and attachment rows:
+  - PDF, Word, Excel, PowerPoint, image, audio, document, and generic file.
+- Added attachment preview behavior:
+  - Images open the image preview overlay.
+  - PDF opens in an iframe preview when the browser can render it.
+  - Word and other non-browser-rendered files show a file preview card with an open-file action.
+- Added `scripts/visual-attachment-preview-harness.js` and `npm run visual:attachment-preview`.
+- Latest DOM evidence at mobile viewport 390x740:
+  - First rendered batch had 56 non-image file icons.
+  - PDF icons: 45.
+  - Word icons: 6.
+  - Right-side legacy thumbnails: 0.
+
+## Latest Attachment UI - Real Thumbnails And Document Preview - 2026-06-03
+
+- Fixed list and inline image previews so they use real generated thumbnails instead of original images scaled down by CSS.
+- Added `scripts/backfill-image-thumbnails.js` and `scripts/generate-image-thumbnails.ps1`.
+  - Thumbnails are JPEG files under `data/thumbnails`.
+  - Attachment metadata now stores `thumbnailStorageKey`, `thumbnailMime`, dimensions, and byte size.
+  - The app exposes thumbnails through `/api/v1/app/attachments/:id/thumbnail`.
+- Updated list chips, attachment rows, and imported inline image grids to load `thumbnailUrl` first.
+  - Opening the image preview still loads the original attachment URL.
+- Updated PDF preview to use a bounded preview panel with fit-to-width hints.
+- Updated file previews to fill the Note iframe viewport in embedded mobile mode.
+- Updated DOCX/Word preview:
+  - `scripts/render-docx-preview.ps1` extracts `word/document.xml` locally.
+  - `/api/v1/app/attachments/:id/preview` returns bounded HTML from the DOCX package.
+  - Word clicks now open an iframe preview with open and download actions.
+  - Legacy Word files or failed conversions still fall back to the file card.
+- Added visual harness coverage:
+  - List image chips must use `/thumbnail`.
+  - Image preview must not open editor inputs.
+  - PDF preview must render in a fit-to-width iframe panel.
+  - Word preview must open a local `/preview` iframe and render extracted document text.
+- Current imported workspace evidence:
+  - Image attachments scanned: 1537.
+  - Images with original stored bytes: 1513.
+  - Images with generated thumbnails: 1513.
+  - Example image original: 4,356,851 bytes; thumbnail: 5,432 bytes.
+
+## Latest Hermes Embed Preview/Thumbnail Hotfix - 2026-06-03
+
+- User report through Hermes Mobile:
+  - Opening an image/file preview inside a plugin should be full-screen and hide Hermes host chrome.
+  - Note's new list thumbnails sometimes do not display, while opening the large image works.
+- Changes made in this Note workspace:
+  - `public/app.js`
+    - `emitNavigationState()` now sends `previewFullscreen`, `fullscreenPreview`, and bounded `preview` metadata when `route.surface === 'image_preview'`.
+    - This lets Hermes Mobile v520 hide its plugin-context footer while the Note image/file preview overlay is active.
+    - Added a capture-phase image error fallback for preview thumbnails: image chips render `thumbnailUrl` first but keep the original attachment URL in `data-fallback-src`, then switch once if the thumbnail request fails.
+    - The fallback is URL-only and does not expose note body or attachment bytes in postMessage payloads.
+  - `public/index.html`
+    - Static query string advanced to `20260603-preview-fullscreen`.
+  - `tests/embedded-contract.test.js`
+    - Covers bounded fullscreen preview navigation payload and thumbnail fallback markup.
+  - `scripts/visual-attachment-preview-harness.js`
+    - Now checks `imageChipHasFallback=true` and `brokenImageChips=0`, not only that the chip URL contains `/thumbnail`.
+- Validation:
+  - `node --check public\app.js`
+  - `node --check scripts\visual-attachment-preview-harness.js`
+  - `node --no-warnings --test tests\embedded-contract.test.js`
+  - `node scripts\privacy-scan.js`
+  - Direct Note attachment route smoke for `att_exb_1010` returned 200 for both original and `/thumbnail`.
+  - Playwright direct Note check at `http://127.0.0.1:4181/?embed=hermes` showed first 12 image chips had `naturalWidth > 0` and no failed thumbnail requests.
+  - `NOTE_VISUAL_BASE_URL=http://127.0.0.1:4181/?embed=hermes npm run visual:attachment-preview` returned `imageChipUsesThumbnail=true`, `imageChipHasFallback=true`, `brokenImageChips=0`, and `previewInputs=0`.
+- Status:
+  - The running Note service on port `4181` serves `public/index.html` with `20260603-preview-fullscreen`.
+  - This workspace was already dirty with many unrelated Note changes before this hotfix. Do not blindly commit all dirty files or revert them; isolate any future commit carefully.
+- Privacy:
+  - No raw Hermes key, Note workspace key, launch token, cookie, note body, attachment content, screenshot, or long log was stored.
+
 ## Read First Next Time
 
 1. `.agent-context/PROJECT_CONTEXT.md`

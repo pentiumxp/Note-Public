@@ -6,6 +6,7 @@ const path = require('node:path');
 const requiredFiles = [
   'src/services/hermes-plugin-service.js',
   'src/stores/sqlite-note-store.js',
+  'src/stores/sqlite-attachment-store.js',
   'src/server-routes/hermes-plugin-routes.js',
   'scripts/note-server.js',
   'scripts/note_mcp_stdio.py',
@@ -50,6 +51,21 @@ if (fs.existsSync(path.join(process.cwd(), 'src', 'stores', 'sqlite-note-store.j
   ]) {
     if (!store.includes(snippet)) {
       failures.push(`SQLite store missing workspace isolation snippet: ${snippet}`);
+    }
+  }
+}
+
+if (fs.existsSync(path.join(process.cwd(), 'src', 'stores', 'sqlite-attachment-store.js'))) {
+  const store = fs.readFileSync(path.join(process.cwd(), 'src', 'stores', 'sqlite-attachment-store.js'), 'utf8');
+  for (const snippet of [
+    'attachment_blobs',
+    'attachment_objects',
+    'attachment_integrity_checks',
+    'where o.workspace_id = ?',
+    'blob_sha256'
+  ]) {
+    if (!store.includes(snippet)) {
+      failures.push(`Attachment store missing asset ledger snippet: ${snippet}`);
     }
   }
 }

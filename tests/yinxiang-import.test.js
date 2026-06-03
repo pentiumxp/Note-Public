@@ -12,6 +12,9 @@ const {
   normalizeYinxiangDate,
   parseNotesExport
 } = require('../scripts/import-yinxiang-notes');
+const {
+  writeAttachmentPayload
+} = require('../scripts/import-yinxiang-exb');
 
 test('parses Yinxiang .notes export blocks without exposing real fixture data', () => {
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -82,4 +85,21 @@ test('normalizes helper values used by the importer', () => {
   assert.equal(decodeXml('&lt;a title=&quot;x&quot;&gt;Tom &amp; Jerry&lt;/a&gt;'), '<a title="x">Tom & Jerry</a>');
   assert.equal(attachmentKind('application/pdf'), 'document');
   assert.equal(attachmentKind('video/mp4'), 'file');
+});
+
+test('EXB importer writes attachment bytes to content-addressed paths', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'note-exb-attachment-'));
+  const written = writeAttachmentPayload({
+    attachmentRoot: root,
+    workspaceId: 'note:demo',
+    mime: 'application/pdf',
+    inlineData: Buffer.from('PDF bytes'),
+    externalAttachmentRoot: '',
+    noteUid: '1',
+    hash: 'source'
+  });
+
+  assert.ok(written.sha256);
+  assert.equal(written.storageKey, `note_demo/${written.sha256.slice(0, 2)}/${written.sha256}.pdf`);
+  assert.equal(fs.readFileSync(path.join(root, ...written.storageKey.split('/')), 'utf8'), 'PDF bytes');
 });

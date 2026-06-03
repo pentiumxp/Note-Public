@@ -9,6 +9,10 @@ const {
   openNoteDatabase,
   upsertNotebook
 } = require('../src/stores/sqlite-note-store');
+const {
+  createSqliteAttachmentStore,
+  openAttachmentDatabase
+} = require('../src/stores/sqlite-attachment-store');
 const { hashRawKey } = require('../src/services/hermes-plugin-service');
 
 async function main(argv = process.argv.slice(2)) {
@@ -16,6 +20,7 @@ async function main(argv = process.argv.slice(2)) {
   const source = path.resolve(options.source || 'C:/Users/xuxin/Yinxiang Biji/Databases/xuxinxp#app.yinxiang.com.exb');
   const workspaceId = options.workspaceId || 'note:yinxiang_import';
   const dbPath = path.resolve(options.db || path.join(process.cwd(), 'data', 'note.sqlite3'));
+  const attachmentDbPath = path.resolve(options.attachmentDb || path.join(process.cwd(), 'data', 'attachment.sqlite3'));
   const attachmentRoot = path.resolve(options.attachmentRoot || path.join(process.cwd(), 'data', 'attachments'));
   const externalAttachmentRoot = path.resolve(options.externalAttachmentRoot || `${source}.attachments`);
   const dryRun = Boolean(options.dryRun);
@@ -55,6 +60,7 @@ async function main(argv = process.argv.slice(2)) {
   const notebookByUid = new Map(notebookRows.map((row) => [Number(row.uid), row]));
 
   const db = dryRun ? null : openNoteDatabase(dbPath);
+  const attachmentDb = dryRun ? null : openAttachmentDatabase(attachmentDbPath);
   if (db) {
     ensureImportWorkspace(db, workspaceId);
     if (replaceWorkspace) {
@@ -62,6 +68,10 @@ async function main(argv = process.argv.slice(2)) {
     }
   }
   const store = db ? createSqliteNoteStore({ db, workspaceId }) : null;
+  const attachmentStore = attachmentDb ? createSqliteAttachmentStore({ db: attachmentDb }) : null;
+  if (attachmentStore && replaceWorkspace) {
+    attachmentStore.clearWorkspace(workspaceId);
+  }
 
   const stats = {
     imported: 0,
@@ -98,6 +108,7 @@ async function main(argv = process.argv.slice(2)) {
       noteId,
       attachmentRoot,
       externalAttachmentRoot,
+      attachmentStore,
       dryRun
     });
     stats.attachments += attachments.length;
@@ -125,12 +136,14 @@ async function main(argv = process.argv.slice(2)) {
 
   exb.close();
   if (db) db.close?.();
+  if (attachmentDb) attachmentDb.close?.();
 
   return {
     ok: true,
     dryRun,
     source,
     workspaceId,
+    attachmentDbPath,
     replaceWorkspace,
     importedNotes: stats.imported,
     bodyReadable: stats.bodyReadable,
@@ -162,35 +175,39 @@ function readAttachments(exb, noteUid, options) {
     const id = `att_exb_${row.uid}`;
     const mime = String(row.mime || 'application/octet-stream');
     const hash = String(row.hash || '').toLowerCase();
-    const storageKey = [
-      safePathSegment(options.workspaceId),
-      safePathSegment(options.noteId),
-      `${safePathSegment(id)}${extensionForMime(mime)}`
-    ].join('/');
     const metadata = {
       mime,
       resourceHash: hash,
       originalName: String(row.file_name || id),
       source: 'yinxiang.exb'
     };
+    let status = 'missing';
+    let sha256 = '';
     if (!options.dryRun) {
-      const outputPath = path.join(options.attachmentRoot, ...storageKey.split('/'));
-      const copied = writeAttachmentPayload(outputPath, row.inline_data, {
+      const written = writeAttachmentPayload({
+        attachmentRoot: options.attachmentRoot,
+        workspaceId: options.workspaceId,
+        mime,
+        inlineData: row.inline_data,
         externalAttachmentRoot: options.externalAttachmentRoot,
         noteUid,
         hash
       });
-      if (copied) {
-        metadata.storageKey = storageKey;
+      if (written) {
+        metadata.storageKey = written.storageKey;
+        metadata.sha256 = written.sha256;
+        metadata.size = written.size;
+        sha256 = written.sha256;
+        status = 'active';
       } else {
         metadata.missingFile = true;
       }
     } else if (row.inline_data || findExternalAttachmentPath(options.externalAttachmentRoot, noteUid, hash)) {
-      metadata.storageKey = storageKey;
+      status = 'active';
     } else {
       metadata.missingFile = true;
     }
-    return {
+    const attachment = {
       id,
       name: String(row.file_name || id),
       kind: attachmentKind(mime),
@@ -198,22 +215,55 @@ function readAttachments(exb, noteUid, options) {
       metadata,
       createdAt: isoFromYinxiangDay(row.date_created) || new Date().toISOString()
     };
+    if (options.attachmentStore) {
+      options.attachmentStore.saveAsset({
+        workspaceId: options.workspaceId,
+        noteId: options.noteId,
+        attachmentId: id,
+        name: attachment.name,
+        kind: attachment.kind,
+        size: Number(metadata.size || attachment.size || 0),
+        mime,
+        storageKey: metadata.storageKey || '',
+        sha256,
+        sourceHash: hash,
+        status,
+        createdAt: attachment.createdAt
+      });
+    }
+    return attachment;
   });
 }
 
-function writeAttachmentPayload(outputPath, inlineData, options) {
+function writeAttachmentPayload(options) {
+  const inline = bufferFromSqlite(options.inlineData);
+  const payload = inline && inline.length
+    ? inline
+    : readExternalAttachmentPayload(options.externalAttachmentRoot, options.noteUid, options.hash);
+  if (!payload || !payload.length) {
+    return null;
+  }
+  const sha256 = crypto.createHash('sha256').update(payload).digest('hex');
+  const storageKey = [
+    safePathSegment(options.workspaceId),
+    sha256.slice(0, 2),
+    `${sha256}${extensionForMime(options.mime)}`
+  ].join('/');
+  const outputPath = path.join(options.attachmentRoot, ...storageKey.split('/'));
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-  const inline = bufferFromSqlite(inlineData);
-  if (inline && inline.length) {
-    fs.writeFileSync(outputPath, inline);
-    return true;
+  const tempPath = `${outputPath}.tmp-${process.pid}-${Date.now()}`;
+  fs.writeFileSync(tempPath, payload);
+  if (!fs.existsSync(outputPath)) {
+    fs.renameSync(tempPath, outputPath);
+  } else {
+    fs.unlinkSync(tempPath);
   }
-  const external = findExternalAttachmentPath(options.externalAttachmentRoot, options.noteUid, options.hash);
-  if (external) {
-    fs.copyFileSync(external, outputPath);
-    return true;
-  }
-  return false;
+  return { storageKey, sha256, size: payload.length };
+}
+
+function readExternalAttachmentPayload(root, noteUid, hash) {
+  const external = findExternalAttachmentPath(root, noteUid, hash);
+  return external ? fs.readFileSync(external) : null;
 }
 
 function findExternalAttachmentPath(root, noteUid, hash) {
@@ -364,5 +414,6 @@ module.exports = {
   extractEnml,
   isoFromYinxiangDay,
   main,
-  parseTags
+  parseTags,
+  writeAttachmentPayload
 };

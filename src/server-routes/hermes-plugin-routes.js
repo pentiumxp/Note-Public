@@ -20,6 +20,16 @@ function createHermesPluginRoutes({ pluginService, db, idGenerator, clock, appWo
       return deleted ? sendJson(response, 200, { ok: true, id: deleted.id, deleted: true }) : sendJson(response, 404, { ok: false, error: 'NOTE_NOT_FOUND' });
     }
 
+    const appAttachmentThumbnailMatch = /^\/api\/v1\/app\/attachments\/([^/]+)\/thumbnail$/.exec(context.pathname);
+    if (appAttachmentThumbnailMatch && request.method === 'GET') {
+      return sendAppAttachment(response, db, appWorkspaceId || 'note:yinxiang_import', decodeURIComponent(appAttachmentThumbnailMatch[1]), { thumbnail: true });
+    }
+
+    const appAttachmentPreviewMatch = /^\/api\/v1\/app\/attachments\/([^/]+)\/preview$/.exec(context.pathname);
+    if (appAttachmentPreviewMatch && request.method === 'GET') {
+      return sendAppAttachmentPreview(response, db, appWorkspaceId || 'note:yinxiang_import', decodeURIComponent(appAttachmentPreviewMatch[1]));
+    }
+
     const appAttachmentMatch = /^\/api\/v1\/app\/attachments\/([^/]+)$/.exec(context.pathname);
     if (appAttachmentMatch && request.method === 'GET') {
       return sendAppAttachment(response, db, appWorkspaceId || 'note:yinxiang_import', decodeURIComponent(appAttachmentMatch[1]));
@@ -249,7 +259,9 @@ function attachmentSummaries(db, workspaceId, noteId) {
       mime: metadata.mime || '',
       resourceHash: metadata.resourceHash || '',
       storageKey: metadata.storageKey || '',
-      url: row.kind === 'image' ? `/api/v1/app/attachments/${encodeURIComponent(row.id)}` : '',
+      url: metadata.storageKey ? `/api/v1/app/attachments/${encodeURIComponent(row.id)}` : '',
+      thumbnailUrl: metadata.thumbnailStorageKey ? `/api/v1/app/attachments/${encodeURIComponent(row.id)}/thumbnail` : '',
+      previewUrl: metadata.storageKey ? `/api/v1/app/attachments/${encodeURIComponent(row.id)}/preview` : '',
       createdAt: row.created_at
     };
   });
@@ -345,9 +357,10 @@ function renderImageGallery(attachments) {
 }
 
 function inlineImageMarkup(attachment) {
+  const previewUrl = attachment.thumbnailUrl || attachment.url;
   return `
     <button type="button" class="inline-image-thumb" data-image-url="${escapeHtml(attachment.url)}" data-image-name="${escapeHtml(attachment.name)}">
-      <img src="${escapeHtml(attachment.url)}" alt="${escapeHtml(attachment.name)}">
+      <img src="${escapeHtml(previewUrl)}" alt="${escapeHtml(attachment.name)}">
     </button>
   `;
 }
@@ -387,40 +400,102 @@ function isBase64OnlyText(value) {
     && /\d/.test(text);
 }
 
-function sendAppAttachment(response, db, workspaceId, attachmentId) {
-  const row = db.prepare(`
-    select metadata_json
-    from attachments
-    where workspace_id = ? and id = ?
-  `).get(workspaceId, attachmentId);
-  if (!row) {
+function sendAppAttachment(response, db, workspaceId, attachmentId, options = {}) {
+  const resolved = resolveAppAttachment(db, workspaceId, attachmentId, options);
+  if (!resolved.row) {
     response.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
     response.end(JSON.stringify({ ok: false, error: 'ATTACHMENT_NOT_FOUND' }));
     return true;
   }
-  const metadata = safeJson(row.metadata_json, {});
-  const storageKey = String(metadata.storageKey || '');
-  const root = require('node:path').resolve(process.cwd(), 'data', 'attachments');
-  const filePath = require('node:path').resolve(root, ...storageKey.split('/'));
-  if (!storageKey || !filePath.startsWith(root)) {
+  if (!resolved.ok) {
     response.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
     response.end(JSON.stringify({ ok: false, error: 'ATTACHMENT_FORBIDDEN' }));
     return true;
   }
   const fs = require('node:fs');
-  fs.readFile(filePath, (error, content) => {
+  fs.readFile(resolved.filePath, (error, content) => {
     if (error) {
       response.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
       response.end(JSON.stringify({ ok: false, error: 'ATTACHMENT_FILE_NOT_FOUND' }));
       return;
     }
     response.writeHead(200, {
-      'Content-Type': metadata.mime || 'application/octet-stream',
-      'Cache-Control': 'private, max-age=300'
+      'Content-Type': options.thumbnail ? (resolved.metadata.thumbnailMime || 'image/jpeg') : (resolved.metadata.mime || 'application/octet-stream'),
+      'Cache-Control': options.thumbnail ? 'private, max-age=86400' : 'private, max-age=300'
     });
     response.end(content);
   });
   return true;
+}
+
+function sendAppAttachmentPreview(response, db, workspaceId, attachmentId) {
+  const resolved = resolveAppAttachment(db, workspaceId, attachmentId);
+  if (!resolved.row) {
+    response.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
+    response.end(JSON.stringify({ ok: false, error: 'ATTACHMENT_NOT_FOUND' }));
+    return true;
+  }
+  if (!resolved.ok) {
+    response.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+    response.end(JSON.stringify({ ok: false, error: 'ATTACHMENT_FORBIDDEN' }));
+    return true;
+  }
+  if (!/\.docx$/i.test(resolved.filePath)) {
+    response.writeHead(415, { 'Content-Type': 'application/json; charset=utf-8' });
+    response.end(JSON.stringify({ ok: false, error: 'ATTACHMENT_PREVIEW_UNSUPPORTED' }));
+    return true;
+  }
+  const { spawnSync } = require('node:child_process');
+  const path = require('node:path');
+  const result = spawnSync('powershell.exe', [
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-File',
+    path.join(process.cwd(), 'scripts', 'render-docx-preview.ps1'),
+    '-InputPath',
+    resolved.filePath
+  ], {
+    encoding: 'utf8',
+    maxBuffer: 8 * 1024 * 1024
+  });
+  if (result.status !== 0 || !result.stdout) {
+    response.writeHead(422, { 'Content-Type': 'application/json; charset=utf-8' });
+    response.end(JSON.stringify({ ok: false, error: 'ATTACHMENT_PREVIEW_FAILED' }));
+    return true;
+  }
+  response.writeHead(200, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Cache-Control': 'private, max-age=300',
+    'X-Content-Type-Options': 'nosniff'
+  });
+  response.end(result.stdout);
+  return true;
+}
+
+function resolveAppAttachment(db, workspaceId, attachmentId, options = {}) {
+  const row = db.prepare(`
+    select metadata_json
+    from attachments
+    where workspace_id = ? and id = ?
+  `).get(workspaceId, attachmentId);
+  if (!row) {
+    return { row: null, ok: false };
+  }
+  const metadata = safeJson(row.metadata_json, {});
+  const storageKey = options.thumbnail ? String(metadata.thumbnailStorageKey || '') : String(metadata.storageKey || '');
+  const rootName = options.thumbnail ? 'thumbnails' : 'attachments';
+  const path = require('node:path');
+  const root = path.resolve(process.cwd(), 'data', rootName);
+  const filePath = path.resolve(root, ...storageKey.split('/'));
+  return {
+    row,
+    metadata,
+    storageKey,
+    root,
+    filePath,
+    ok: Boolean(storageKey && filePath.startsWith(root))
+  };
 }
 
 function safeJson(value, fallback) {

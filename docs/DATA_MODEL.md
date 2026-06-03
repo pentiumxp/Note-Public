@@ -24,7 +24,7 @@
 | `created_at` | string | yes | ISO-8601 timestamp. |
 | `updated_at` | string | yes | ISO-8601 timestamp. |
 
-Yinxiang `.notes` import maps each exported file to one notebook. The importer stores the note body and attachment metadata in SQLite, materializes resource payloads under ignored `data/attachments/`, and keeps the raw `.notes` files under ignored `imports/`.
+Yinxiang imports map exported notebooks to workspace-local notebooks. The importer stores note body and bounded attachment metadata in `note.sqlite3`, records attachment assets in `attachment.sqlite3`, materializes resource payloads under ignored `data/attachments/`, and keeps raw import files under ignored `imports/`.
 
 ## Attachment
 
@@ -36,6 +36,22 @@ Yinxiang `.notes` import maps each exported file to one notebook. The importer s
 | `name` | string | yes | Original display name when provided by the export. |
 | `kind` | string | yes | Bounded type such as `image`, `audio`, `document`, or `file`. |
 | `metadata_json.storageKey` | string | yes for imported binaries | Internal path key under the Note attachment root, not an absolute path. |
+
+Attachment bytes are not stored as BLOBs in `note.sqlite3`. The main Note database stores note-to-attachment metadata for UI and query projection only.
+
+## Attachment Asset Ledger
+
+`attachment.sqlite3` stores the durable attachment asset ledger:
+
+| Table | Purpose |
+| --- | --- |
+| `attachment_blobs` | One row per unique content hash, including `sha256`, size, MIME, storage key, status, and timestamps. |
+| `attachment_objects` | One row per logical workspace-bound note attachment, including note id, attachment id, display name, blob hash, source hash, and status. |
+| `attachment_integrity_checks` | Append-only records for integrity scans. |
+
+Attachment files are content-addressed under `data/attachments/<workspace>/<sha-prefix>/<sha><ext>`.
+
+See `docs/ATTACHMENT_ASSET_STORE.md` for the required write flow and backup contract.
 
 ## Future Migration Rules
 
