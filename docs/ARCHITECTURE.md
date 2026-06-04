@@ -9,7 +9,9 @@
 | Provider | File/external-system import/export boundary | `src/providers/file-note-provider.js` |
 | Projection | Workspace summaries, filters, task views | `src/view-models/workspace-view-model.js` |
 | Hermes plugin service | Manifest, provisioning, workspace key hash verification, launch token creation | `src/services/hermes-plugin-service.js` |
+| MCP attachment service | Bounded MCP attachment payload validation and materialization | `src/services/mcp-attachment-service.js` |
 | SQLite store | Note-owned persistent database and workspace-isolated reads/writes | `src/stores/sqlite-note-store.js` |
+| Attachment SQLite store | Content-addressed attachment object/blob index | `src/stores/sqlite-attachment-store.js` |
 | Routes | HTTP glue for plugin and notes API | `src/server-routes/hermes-plugin-routes.js` |
 | MCP wrapper | Workspace-bound stdio bridge for Hermes Agent | `scripts/note_mcp_stdio.py` |
 | Importer | Yinxiang `.notes` notebook import into Note SQLite | `scripts/import-yinxiang-notes.js` |
@@ -63,6 +65,7 @@ Note may link a note to those objects, but must not copy their full data or writ
 | File provider | import/export adapter contract | permission decisions, note lifecycle | future provider tests |
 | Workspace view model | filtered lists, counters, task summaries | persistence, note mutation | `tests/workspace-view-model.test.js` |
 | Hermes plugin service | registration key validation, workspace id normalization, launch token creation | SQL persistence, route parsing, UI | `tests/hermes-plugin-service.test.js` |
+| MCP attachment service | base64 payload limits, file materialization, attachment-store indexing | HTTP auth, note mutation, model prompts | `tests/mcp-attachment-service.test.js` |
 | SQLite note store | `workspace_id` filtered note/workspace persistence | auth decisions, request parsing | `tests/sqlite-note-store.test.js` |
 | MCP wrapper | workspace-local config/key loading, local tool names, bounded API calls | workspace selection by model args, raw key output | `tests/mcp-wrapper.test.js` |
 
@@ -129,12 +132,18 @@ The local plugin server exposes bounded plugin and notes routes:
 - `DELETE /api/v1/notes/:id`
 - `GET /api/v1/notes/tags`
 
-For the local embedded app surface, the server also exposes a same-origin, server-selected workspace view:
+For the local embedded app surface, the server also exposes a same-origin app
+workspace view:
 
 - `GET /api/v1/app/workspace`
 - `GET /api/v1/app/notes/:id`
 
-These routes are for rendering the configured app workspace, defaulting in development to `note:yinxiang_import`. They do not expose a raw workspace key to browser JavaScript. Hermes MCP and plugin routes still use the workspace key contract above.
+In embedded production, these routes resolve the workspace from the verified
+launch token and fail closed when no launch token is present. Development-only
+standalone runs may still use a configured fallback workspace. The app routes
+must not expose a raw workspace key to browser JavaScript, and they must not
+fall back to `note:owner` when Hermes launches a non-owner workspace. Hermes
+MCP and plugin routes still use the workspace key contract above.
 
 Routes should expose bounded DTOs and use stable error codes:
 
@@ -158,7 +167,7 @@ There are no async queues in the local prototype. Any future import/export, sync
 
 ## External Systems
 
-Initial external boundary is local file-system import/export only. Yinxiang `.notes` files are imported per notebook: each exported file name becomes a Note notebook in the target workspace, each note keeps its original ENML-like body, and resource payloads are materialized under Note-owned ignored `data/attachments/`. The database stores bounded attachment metadata plus an internal `storageKey`, never a user-supplied absolute path. Raw export files live under ignored `imports/` and are never committed. Cloud drives, Obsidian vaults, Git remotes, model services, and mobile clients are out of scope until documented.
+Initial external boundary is local file-system import/export plus MCP-provided bounded attachment payloads. Yinxiang `.notes` files are imported per notebook: each exported file name becomes a Note notebook in the target workspace, each note keeps its original ENML-like body, and resource payloads are materialized under Note-owned ignored `data/attachments/`. MCP attachments must arrive as bounded base64 payloads; model-provided paths, URLs, keys, launch tokens, and storage keys are rejected. The database stores bounded attachment metadata plus an internal `storageKey`, never a user-supplied absolute path. The runtime also mirrors attachment blob/object records into `data/attachment.sqlite3` when the attachment store is configured. Raw export files live under ignored `imports/` and are never committed. Cloud drives, Obsidian vaults, Git remotes, model services, and mobile clients are out of scope until documented.
 
 ## Reference-App Mapping
 

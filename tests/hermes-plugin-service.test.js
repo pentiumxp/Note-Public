@@ -52,6 +52,7 @@ test('manifest is readable before workspace provisioning and is bounded', async 
   assert.equal(manifest.id, 'note');
   assert.equal(manifest.entry.url, '/note.html?embed=hermes');
   assert.equal(manifest.workspace.idFormat, 'note:<hermes_workspace_id>');
+  assert.deepEqual(manifest.appearance_sync.entry_query, { theme: 'pluginTheme' });
   const text = JSON.stringify(manifest);
   assert.doesNotMatch(text, /secret|access[_-]?key|sqlite|ProgramData|volume1/i);
 });
@@ -130,10 +131,15 @@ test('launch returns a short-lived entry without workspace id or raw key', async
 
   const launch = await service.launchWorkspace({
     authorization: 'Bearer workspace-raw-key',
-    body: { workspace_id: 'note:weixin_test_1', target_workspace_id: 'weixin_test_1' }
+    body: {
+      workspace_id: 'note:weixin_test_1',
+      target_workspace_id: 'weixin_test_1',
+      appearance: { theme: 'dark' }
+    }
   });
 
   assert.equal(launch.expires_in_seconds, 300);
-  assert.equal(launch.entry_path, '/note.html?embed=hermes&launch=launch-token');
+  assert.deepEqual(launch.appearance, { theme: 'dark' });
+  assert.equal(launch.entry_path, '/note.html?embed=hermes&launch=launch-token&pluginTheme=dark');
   assert.doesNotMatch(launch.entry_path, /workspace|workspace-raw-key|sqlite|ProgramData|volume1/i);
 });

@@ -11,11 +11,17 @@ const {
   createSqliteLaunchTokenStore,
   openNoteDatabase
 } = require('../src/stores/sqlite-note-store');
+const {
+  createSqliteAttachmentStore,
+  openAttachmentDatabase
+} = require('../src/stores/sqlite-attachment-store');
 
 const root = path.join(process.cwd(), 'public');
 const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || '0.0.0.0';
 const dbPath = process.env.NOTE_DB_PATH || path.join(process.cwd(), 'data', 'note.sqlite3');
+const attachmentDbPath = process.env.NOTE_ATTACHMENT_DB_PATH || path.join(process.cwd(), 'data', 'attachment.sqlite3');
+const attachmentRoot = process.env.NOTE_ATTACHMENT_ROOT || path.join(process.cwd(), 'data', 'attachments');
 const registrationKey = process.env.NOTE_REGISTRATION_KEY || readRegistrationKeyFile();
 const types = {
   '.html': 'text/html; charset=utf-8',
@@ -26,6 +32,8 @@ const types = {
 };
 
 const db = openNoteDatabase(dbPath);
+const attachmentDb = openAttachmentDatabase(attachmentDbPath);
+const attachmentStore = createSqliteAttachmentStore({ db: attachmentDb, idGenerator: () => crypto.randomUUID() });
 const pluginService = createHermesPluginService({
   workspaceStore: createSqliteHermesWorkspaceStore(db),
   tokenStore: createSqliteLaunchTokenStore(db),
@@ -36,7 +44,10 @@ const routePlugin = createHermesPluginRoutes({
   pluginService,
   db,
   appWorkspaceId: process.env.NOTE_APP_WORKSPACE_ID || 'note:yinxiang_import',
-  idGenerator: () => crypto.randomUUID()
+  requireAppLaunchToken: process.env.NOTE_REQUIRE_APP_LAUNCH_TOKEN === '1',
+  idGenerator: () => crypto.randomUUID(),
+  attachmentRoot,
+  attachmentStore
 });
 
 const server = http.createServer(async (request, response) => {

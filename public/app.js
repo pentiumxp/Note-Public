@@ -18,7 +18,12 @@ const SWIPE_DELETE_WIDTH = 184;
 const NOTE_LIST_INITIAL_LIMIT = 120;
 const NOTE_LIST_BATCH_SIZE = 80;
 const NOTE_LIST_SCROLL_THRESHOLD = 900;
+const PLUGIN_APPEARANCE_STORAGE_KEY = 'note.plugin.appearance';
+const APP_LAUNCH_TOKEN = readAppLaunchToken();
 let renderedNoteLimit = NOTE_LIST_INITIAL_LIMIT;
+
+initializeNoteTheme();
+initializePluginAppearanceFromUrl();
 
 const elements = {
   newNoteButton: document.querySelector('#new-note-button'),
@@ -159,6 +164,7 @@ function wireHermesEmbedding() {
   if (new URLSearchParams(window.location.search).get('embed') === 'hermes') {
     postHostEvent('plugin:ready', { plugin: 'note' });
     emitNavigationState();
+    window.setInterval(syncPluginHostAppearance, 1500);
   }
   window.addEventListener('message', (event) => {
     const message = event.data || {};
@@ -171,8 +177,8 @@ function wireHermesEmbedding() {
       }
       return;
     }
-    if (message.type === 'hermes:theme') {
-      applyHermesTheme(message.theme || {});
+    if (message.type === 'hermes:theme' && isTrustedHermesMessage(event)) {
+      applyHermesTheme(message);
     }
     if (message.type === 'hermes:workspace' || message.type === 'hermes:refresh') {
       render();
@@ -186,14 +192,175 @@ function wireHermesEmbedding() {
   });
 }
 
-function applyHermesTheme(theme) {
+function initializeNoteTheme() {
   const root = document.documentElement;
+  const params = new URLSearchParams(window.location.search);
+  const embeddedTheme = root.dataset.embed === 'hermes'
+    ? normalizeThemeMode({
+      theme: params.get('pluginTheme') || params.get('theme') || params.get('colorScheme'),
+      appearance: params.get('appearance'),
+      dark: params.get('dark')
+    })
+    : '';
+  const inheritedTheme = hermesParentEffectiveTheme();
+  const systemTheme = window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  setNoteTheme(inheritedTheme || embeddedTheme || root.dataset.theme || systemTheme);
+}
+
+function initializePluginAppearanceFromUrl() {
+  if (!isHermesPluginEmbed()) return;
+  const params = new URLSearchParams(window.location.search);
+  const mode = normalizeThemeMode({
+    theme: params.get('pluginTheme') || params.get('theme') || params.get('colorScheme'),
+    appearance: params.get('appearance'),
+    dark: params.get('dark')
+  });
+  if (mode) {
+    storePluginAppearance({ theme: mode });
+    setNoteTheme(hermesParentEffectiveTheme() || mode);
+  }
+  if (params.has('pluginTheme')) {
+    params.delete('pluginTheme');
+    const query = params.toString();
+    const nextUrl = `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash || ''}`;
+    window.history.replaceState({}, document.title, nextUrl);
+  }
+}
+
+function isHermesPluginEmbed() {
+  return document.documentElement.dataset.embed === 'hermes'
+    || new URLSearchParams(window.location.search).get('embed') === 'hermes';
+}
+
+function readAppLaunchToken() {
+  return new URLSearchParams(window.location.search).get('launch') || '';
+}
+
+function appApiUrl(pathname) {
+  if (!APP_LAUNCH_TOKEN) {
+    return pathname;
+  }
+  const url = new URL(pathname, window.location.origin);
+  url.searchParams.set('launch', APP_LAUNCH_TOKEN);
+  return `${url.pathname}${url.search}`;
+}
+
+function appApiFetch(pathname, options = {}) {
+  const headers = new Headers(options.headers || {});
+  if (APP_LAUNCH_TOKEN) {
+    headers.set('X-Note-Launch-Token', APP_LAUNCH_TOKEN);
+  }
+  return fetch(appApiUrl(pathname), { ...options, headers });
+}
+
+function hermesParentEffectiveTheme() {
+  if (!isHermesPluginEmbed() || window.parent === window) return '';
+  try {
+    const parentRoot = window.parent.document?.documentElement;
+    if (!parentRoot) return '';
+    const value = parentRoot.getAttribute('data-effective-theme')
+      || parentRoot.getAttribute('data-theme')
+      || parentRoot.getAttribute('data-plugin-theme')
+      || '';
+    return value === 'dark' || value === 'light' ? value : '';
+  } catch {
+    return '';
+  }
+}
+
+function storePluginAppearance(appearance) {
+  try {
+    const mode = normalizeThemeMode({ theme: appearance?.theme });
+    if (mode) {
+      window.sessionStorage.setItem(PLUGIN_APPEARANCE_STORAGE_KEY, JSON.stringify({ theme: mode }));
+    }
+  } catch {
+    // Session storage can be unavailable in strict embedded contexts; DOM theme is already applied.
+  }
+}
+
+function readPluginAppearance() {
+  try {
+    const raw = window.sessionStorage.getItem(PLUGIN_APPEARANCE_STORAGE_KEY) || '';
+    const parsed = raw ? JSON.parse(raw) : null;
+    const mode = normalizeThemeMode({ theme: parsed?.theme });
+    return mode ? { theme: mode } : null;
+  } catch {
+    return null;
+  }
+}
+
+function syncPluginHostAppearance() {
+  if (!isHermesPluginEmbed()) return;
+  const inheritedTheme = hermesParentEffectiveTheme();
+  if (inheritedTheme) {
+    setNoteTheme(inheritedTheme);
+    return;
+  }
+  const appearance = readPluginAppearance();
+  if (appearance?.theme) {
+    setNoteTheme(appearance.theme);
+  }
+}
+
+function isTrustedHermesMessage(event) {
+  if (!isHermesPluginEmbed()) return false;
+  if (event.source && event.source !== window.parent) return false;
+  if (!event.source && event.origin && event.origin !== window.location.origin) return false;
+  return true;
+}
+
+function applyHermesTheme(message) {
+  const root = document.documentElement;
+  const theme = normalizeHermesTheme(message);
+  if (theme.mode) {
+    storePluginAppearance({ theme: theme.mode });
+    setNoteTheme(theme.mode);
+  }
   if (theme.density === 'compact') {
     root.style.setProperty('--line', '#d6ddd4');
   }
   if (typeof theme.fontFamily === 'string' && theme.fontFamily.length < 120) {
     document.body.style.fontFamily = `${theme.fontFamily}, "Microsoft YaHei", Arial, sans-serif`;
   }
+}
+
+function normalizeHermesTheme(message = {}) {
+  const payload = message.payload && typeof message.payload === 'object' ? message.payload : {};
+  const nested = message.theme && typeof message.theme === 'object' ? message.theme : {};
+  const theme = {
+    ...payload,
+    ...nested,
+    theme: typeof message.theme === 'string' ? message.theme : nested.theme || payload.theme || message.theme,
+    appearance: message.appearance || nested.appearance || payload.appearance,
+    dark: message.dark ?? message.darkMode ?? message.isDarkMode ?? nested.dark ?? nested.darkMode ?? nested.isDarkMode ?? payload.dark ?? payload.darkMode ?? payload.isDarkMode,
+    density: message.density || nested.density || payload.density,
+    fontFamily: message.fontFamily || nested.fontFamily || payload.fontFamily
+  };
+  return {
+    mode: normalizeThemeMode(theme),
+    density: theme.density,
+    fontFamily: theme.fontFamily
+  };
+}
+
+function normalizeThemeMode(input = {}) {
+  const candidates = [input.theme, input.appearance, input.mode, input.colorScheme]
+    .map((value) => String(value || '').toLowerCase().trim());
+  if (candidates.some((value) => ['dark', 'night', 'black'].includes(value))) return 'dark';
+  if (candidates.some((value) => ['light', 'day', 'white'].includes(value))) return 'light';
+  if (typeof input.dark === 'boolean') return input.dark ? 'dark' : 'light';
+  if (typeof input.dark === 'string') {
+    const value = input.dark.toLowerCase().trim();
+    if (['1', 'true', 'yes', 'dark'].includes(value)) return 'dark';
+    if (['0', 'false', 'no', 'light'].includes(value)) return 'light';
+  }
+  return '';
+}
+
+function setNoteTheme(mode) {
+  const normalized = mode === 'dark' ? 'dark' : 'light';
+  document.documentElement.dataset.theme = normalized;
 }
 
 function postHostEvent(type, payload) {
@@ -443,7 +610,6 @@ function renderNoteList() {
     button.className = 'note-row note-swipe-content';
     button.setAttribute('role', 'button');
     button.setAttribute('tabindex', '0');
-    const attachment = (note.attachments || [])[0];
     button.innerHTML = `
       <div class="note-main">
         <div class="note-row-title">${escapeHtml(note.title || '无标题笔记')}</div>
@@ -455,12 +621,10 @@ function renderNoteList() {
           ${(note.attachments || []).length ? `<span class="meta-chip">附件 ${(note.attachments || []).length}</span>` : ''}
         </div>
       </div>
-      <div class="note-thumb">${attachmentPreviewMarkup(attachment)}</div>
     `;
-    const mediaStrip = buildNoteListAttachmentStrip(note);
-    if (mediaStrip) {
-      const snippet = button.querySelector('.note-row-snippet');
-      button.querySelector('.note-main')?.insertBefore(mediaStrip, snippet);
+    const mediaRail = buildNoteListMediaRail(note);
+    if (mediaRail) {
+      button.append(mediaRail);
     }
     if ((note.attachments || []).length) {
       button.querySelector('.note-row-meta .meta-chip:last-child')?.remove();
@@ -473,7 +637,6 @@ function renderNoteList() {
     if (snippet && !listSnippet) {
       snippet.remove();
     }
-    button.querySelector('.note-thumb')?.remove();
     button.addEventListener('click', () => {
       if (row.dataset.swipeSuppressClick === '1') {
         row.dataset.swipeSuppressClick = '0';
@@ -543,6 +706,35 @@ function noteListSnippetText(note) {
   return text;
 }
 
+function buildNoteListMediaRail(note) {
+  const attachments = note.attachments || [];
+  if (!attachments.length) return null;
+  const primary = attachments.find((attachment) => attachment.kind === 'image' && attachment.url) || attachments[0];
+  const rail = document.createElement('div');
+  rail.className = 'note-row-media';
+  const thumb = document.createElement(primary.url ? 'button' : 'span');
+  thumb.className = `note-thumb ${primary.kind === 'image' ? 'note-thumb-image' : 'note-thumb-file'}`;
+  thumb.dataset.attachmentId = primary.id || '';
+  if (primary.url) {
+    thumb.type = 'button';
+    thumb.setAttribute('aria-label', primary.name || attachmentTypeInfo(primary).label);
+    thumb.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openAttachmentPreview(primary);
+    });
+  }
+  thumb.innerHTML = attachmentPreviewMarkup(primary);
+  rail.append(thumb);
+  if (attachments.length > 1) {
+    const count = document.createElement('span');
+    count.className = 'note-attachment-count';
+    count.textContent = `+${attachments.length - 1}`;
+    rail.append(count);
+  }
+  return rail;
+}
+
 function buildNoteListAttachmentStrip(note) {
   const attachments = (note.attachments || []).slice(0, 4);
   if (!attachments.length) return null;
@@ -609,7 +801,7 @@ function wireNoteSwipe(row, content, noteId) {
   };
 
   content.addEventListener('pointerdown', (event) => {
-    if (event.target.closest('.note-row-image-chip')) return;
+    if (event.target.closest('.note-row-image-chip,.note-row-attachment-chip,.note-thumb')) return;
     if (event.button !== 0 && event.pointerType === 'mouse') return;
     startX = event.clientX;
     startY = event.clientY;
@@ -708,7 +900,7 @@ async function deleteNoteById(noteId, { confirmed = false } = {}) {
   }
   render();
   try {
-    const response = await fetch(`/api/v1/app/notes/${encodeURIComponent(noteId)}`, { method: 'DELETE' });
+    const response = await appApiFetch(`/api/v1/app/notes/${encodeURIComponent(noteId)}`, { method: 'DELETE' });
     if (!response.ok) {
       throw new Error(`delete failed: ${response.status}`);
     }
@@ -907,7 +1099,7 @@ function persist() {
 
 async function loadImportedWorkspace() {
   try {
-    const response = await fetch('/api/v1/app/workspace');
+    const response = await appApiFetch('/api/v1/app/workspace');
     if (!response.ok) {
       throw new Error(`workspace load failed: ${response.status}`);
     }
@@ -947,7 +1139,7 @@ async function loadNoteDetail(noteId) {
   const note = state.notes.find((item) => item.id === noteId);
   if (!note || note.detailLoaded) return;
   try {
-    const response = await fetch(`/api/v1/app/notes/${encodeURIComponent(noteId)}`);
+    const response = await appApiFetch(`/api/v1/app/notes/${encodeURIComponent(noteId)}`);
     if (!response.ok) {
       throw new Error(`note load failed: ${response.status}`);
     }
@@ -987,13 +1179,13 @@ function handleBodyEditorClick(event) {
 }
 
 function handleNoteListAttachmentClick(event) {
-  const chip = event.target.closest('.note-row-image-chip,.note-row-attachment-chip');
+  const chip = event.target.closest('.note-row-image-chip,.note-row-attachment-chip,.note-thumb');
   if (!chip || !elements.noteList.contains(chip)) return;
   const attachment = findAttachmentById(chip.dataset.attachmentId);
   if (!attachment?.url) return;
   event.preventDefault();
   event.stopPropagation();
-  if (chip.classList.contains('note-row-image-chip')) {
+  if (chip.classList.contains('note-row-image-chip') || chip.classList.contains('note-thumb-image')) {
     openImagePreview(attachment.url, attachment.name || '图片');
     return;
   }
@@ -1018,19 +1210,163 @@ function findAttachmentById(attachmentId) {
   return null;
 }
 
-function openImagePreview(url, name) {
+function openImagePreview(url, name, options = {}) {
   if (!url) return;
+  const preview = imagePreviewItemsFor(url, name, options.attachmentId || '');
   openPreviewOverlay({
     label: '图片预览',
-    content: `<img src="${escapeHtml(url)}" alt="${escapeHtml(name)}">`
+    content: imagePreviewContent(preview.items, preview.index)
   });
+  const overlay = document.querySelector('.image-preview-overlay');
+  if (overlay) {
+    wireImagePreviewCarousel(overlay, preview.items, preview.index);
+  }
+}
+
+function imagePreviewItemsFor(url, name, attachmentId = '') {
+  let ownerNote = null;
+  for (const note of state.notes || []) {
+    const match = (note.attachments || []).find((attachment) => {
+      return (attachmentId && attachment.id === attachmentId) || attachment.url === url;
+    });
+    if (match) {
+      ownerNote = note;
+      break;
+    }
+  }
+  const items = (ownerNote?.attachments || [])
+    .filter((attachment) => attachment.kind === 'image' && attachment.url)
+    .map((attachment) => ({
+      id: attachment.id || '',
+      url: attachment.url,
+      name: attachment.name || name || ''
+    }));
+  if (!items.length) {
+    return { items: [{ id: attachmentId, url, name: name || '' }], index: 0 };
+  }
+  const index = Math.max(0, items.findIndex((item) => {
+    return (attachmentId && item.id === attachmentId) || item.url === url;
+  }));
+  return { items, index };
+}
+
+function imagePreviewContent(items, index) {
+  const current = items[index] || items[0];
+  const count = items.length;
+  return `
+    <div class="image-preview-stage" data-image-preview-stage>
+      <img class="image-preview-media" data-image-preview-media src="${escapeHtml(current.url)}" alt="${escapeHtml(current.name)}">
+      ${count > 1 ? '<button class="image-preview-nav image-preview-prev" type="button" data-image-prev aria-label="Previous image">‹</button>' : ''}
+      ${count > 1 ? '<button class="image-preview-nav image-preview-next" type="button" data-image-next aria-label="Next image">›</button>' : ''}
+      ${count > 1 ? `<div class="image-preview-counter" data-image-counter>${index + 1}/${count}</div>` : ''}
+    </div>
+  `;
+}
+
+function wireImagePreviewCarousel(overlay, items, initialIndex) {
+  if (!overlay || items.length <= 1) return;
+  let index = initialIndex;
+  let startX = 0;
+  let startY = 0;
+  let tracking = false;
+  let lastGestureAt = 0;
+  const stage = overlay.querySelector('[data-image-preview-stage]') || overlay;
+  const media = overlay.querySelector('[data-image-preview-media]');
+  const counter = overlay.querySelector('[data-image-counter]');
+  const show = (nextIndex) => {
+    index = (nextIndex + items.length) % items.length;
+    const item = items[index];
+    if (media) {
+      media.src = item.url;
+      media.alt = item.name || '';
+    }
+    if (counter) {
+      counter.textContent = `${index + 1}/${items.length}`;
+    }
+  };
+  overlay.querySelector('[data-image-prev]')?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    show(index - 1);
+  });
+  overlay.querySelector('[data-image-next]')?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    show(index + 1);
+  });
+  stage.addEventListener('pointerdown', (event) => {
+    if (event.target.closest('button,a,iframe')) return;
+    startX = event.clientX;
+    startY = event.clientY;
+    tracking = true;
+    stage.setPointerCapture?.(event.pointerId);
+  });
+  stage.addEventListener('pointerup', (event) => {
+    if (!tracking) return;
+    tracking = false;
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+    if (Math.abs(dx) < 42 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+    if (Date.now() - lastGestureAt < 120) return;
+    lastGestureAt = Date.now();
+    show(dx < 0 ? index + 1 : index - 1);
+  });
+  stage.addEventListener('pointercancel', () => {
+    tracking = false;
+  });
+  stage.addEventListener('mousedown', (event) => {
+    if (event.target.closest('button,a,iframe')) return;
+    startX = event.clientX;
+    startY = event.clientY;
+    tracking = true;
+  });
+  stage.addEventListener('mouseup', (event) => {
+    if (!tracking) return;
+    tracking = false;
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+    if (Math.abs(dx) < 42 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+    if (Date.now() - lastGestureAt < 120) return;
+    lastGestureAt = Date.now();
+    show(dx < 0 ? index + 1 : index - 1);
+  });
+  stage.addEventListener('touchstart', (event) => {
+    const touch = event.touches[0];
+    if (!touch || event.target.closest('button,a,iframe')) return;
+    startX = touch.clientX;
+    startY = touch.clientY;
+    tracking = true;
+  }, { passive: true });
+  stage.addEventListener('touchend', (event) => {
+    if (!tracking) return;
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+    tracking = false;
+    const dx = touch.clientX - startX;
+    const dy = touch.clientY - startY;
+    if (Math.abs(dx) < 42 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+    if (Date.now() - lastGestureAt < 120) return;
+    lastGestureAt = Date.now();
+    show(dx < 0 ? index + 1 : index - 1);
+  });
+  const keyHandler = (event) => {
+    if (!document.body.contains(overlay)) {
+      window.removeEventListener('keydown', keyHandler);
+      return;
+    }
+    if (event.key === 'ArrowLeft') {
+      show(index - 1);
+    }
+    if (event.key === 'ArrowRight') {
+      show(index + 1);
+    }
+  };
+  window.addEventListener('keydown', keyHandler);
 }
 
 function openAttachmentPreview(attachment) {
   if (!attachment?.url) return;
   const info = attachmentTypeInfo(attachment);
   if (info.type === 'image') {
-    openImagePreview(attachment.url, attachment.name || info.label);
+    openImagePreview(attachment.url, attachment.name || info.label, { attachmentId: attachment.id });
     return;
   }
   if (info.type === 'pdf') {

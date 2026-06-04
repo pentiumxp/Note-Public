@@ -6,6 +6,9 @@
 - Workspace path: `C:\Users\xuxin\Documents\Note`
 - Runtime target: local Windows workspace, PowerShell shell, Node.js built-in test runner for the initial harness.
 - Current repository state: initialized as a local project scaffold; commit, push, and deployment require explicit user instruction.
+- Hermes Mobile local integration runs Note MCP from WSL Gateway workers. The
+  Note plugin service should listen on `0.0.0.0:4181`; the MCP wrapper should
+  use the Windows WSL host gateway address, not Windows-only loopback.
 
 ## Goal
 
@@ -33,3 +36,9 @@ Create a maintainable notes project that functionally recreates the core Yinxian
 ## Secret Handling
 
 Secrets must be stored outside the repo or in local ignored `.env` files. Documentation may reference variable names and secret locations only, never secret values.
+## HANES Context Loading
+
+- Use .agent-context/HANES_CONTEXT_LOADING.md for cross-workspace context loading discipline. Keep startup context short; load detailed skills, docs, handoffs, archives, and harness matrices only when the current task crosses that risk boundary.
+## Workspace Bootstrap Read First
+
+- Use .agent-context/WORKSPACE_BOOTSTRAP_READ_FIRST.md for cross-workspace startup discipline. Confirm the intended workspace, read bounded .agent-context/PROJECT_CONTEXT.md and .agent-context/HANDOFF.md before substantive work, honor continuation read-only mode, and combine this with .agent-context/HANES_CONTEXT_LOADING.md to avoid loading full historical context unless needed.

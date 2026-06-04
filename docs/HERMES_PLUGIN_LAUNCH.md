@@ -37,6 +37,14 @@ The Note service verifies:
 
 The entry path must not include raw keys, workspace ids, database paths, local file paths, cookies, or private note content.
 
+The embedded app uses the launch token only to resolve the Note workspace for
+same-origin app routes such as `/api/v1/app/workspace`,
+`/api/v1/app/notes/:id`, and `/api/v1/app/attachments/:id`. Those routes must
+read the workspace from the verified launch token in embedded production mode;
+they must not fall back to `note:owner` or any other configured default
+workspace. Attachment and preview URLs returned to the embedded app inherit the
+same launch-token scope.
+
 ## Stable Error Codes
 
 | Code | Meaning |

@@ -1,5 +1,51 @@
 # Handoff
 
+## Latest Note MCP Hermes Agent Compatibility Fix - 2026-06-03
+
+- User reported NAS Hermes Mobile could not use Note MCP even though the Note plugin itself could return notes.
+- Root cause found from NAS Gateway `nasgw1` logs:
+  - Hermes Agent SDK rejected Note MCP `initialize` because the wrapper returned only `protocolVersion` and `capabilities`; it lacked `serverInfo`.
+  - After adding `serverInfo`, Hermes Agent then rejected wrapper output because the wrapper responded to id-less MCP notifications such as `notifications/initialized` with an invalid JSON-RPC error containing `id: null`.
+- Source changes in this workspace:
+  - `scripts/note_mcp_stdio.py`
+    - `initialize` now returns `serverInfo: { name: "note", version: "1.0.0" }`.
+    - id-less notifications now return no response.
+    - exceptions from id-less messages are ignored instead of emitting invalid `id:null` JSON-RPC errors.
+  - `tests/mcp-wrapper.test.js`
+    - added initialize `serverInfo` coverage.
+    - added notification no-output coverage.
+- Verification:
+  - Local: `python -m py_compile scripts\note_mcp_stdio.py`
+  - Local: `node --test tests\mcp-wrapper.test.js`
+  - Local: `npm run check -- --help` completed the configured syntax checks.
+  - Local: `npm run privacy`
+  - Local: `git diff --check` passed with CRLF warnings only.
+- NAS sync:
+  - Backups:
+    - `/volume1/docker/note/backups/note-mcp-server-info-20260603-172651`
+    - `/volume1/docker/note/backups/note-mcp-notification-fix-20260603-172919`
+  - Synced:
+    - `/volume1/docker/note/source/scripts/note_mcp_stdio.py`
+    - `/volume1/docker/note/source/tests/mcp-wrapper.test.js`
+  - NAS checks passed with pinned Node:
+    - `python3 -m py_compile scripts/note_mcp_stdio.py`
+    - `/volume1/docker/hermes-mobile/runtime/node-v22.22.3-linux-x64/bin/node --test tests/mcp-wrapper.test.js`
+- NAS Hermes verification after restarting `nasgw1`:
+  - `nasgw1` profile config includes `note` toolset, `mcp_servers.note`, and `platform_toolsets.api_server: note`.
+  - Recent `nasgw1` Gateway log has no Note/MCP initialize errors.
+  - Real Hermes Agent schema probe for `nasgw1` includes:
+    - `mcp_note_notes_search`
+    - `mcp_note_notes_create`
+    - `mcp_note_notes_get`
+    - `mcp_note_notes_recent`
+    - `mcp_note_notes_update`
+    - `mcp_note_notes_delete`
+    - `mcp_note_notes_tags_list`
+  - Direct MCP `notes_recent` smoke returned `recentOk=true`, payload key `notes`, `noteCount=1`, and only metadata keys were printed.
+- Status:
+  - Note repo changes are local and uncommitted unless the user explicitly asks for a Note commit/push.
+  - Existing local `.agent-context` changes from prior context setup remain; do not overwrite them blindly.
+
 ## Current Goal
 
 Build a notes product that basically recreates China edition Yinxiang Biji/Evernote-style workflows and can integrate as an independent Hermes Mobile Note plugin with workspace isolation, SQLite persistence, provisioning/launch contracts, same-origin embedding, and workspace-bound MCP tools.
@@ -283,6 +329,45 @@ Build a notes product that basically recreates China edition Yinxiang Biji/Evern
   - This workspace was already dirty with many unrelated Note changes before this hotfix. Do not blindly commit all dirty files or revert them; isolate any future commit carefully.
 - Privacy:
   - No raw Hermes key, Note workspace key, launch token, cookie, note body, attachment content, screenshot, or long log was stored.
+
+## Latest Hermes MCP Reachability Hotfix - 2026-06-04
+
+- User report through Hermes Mobile:
+  - `mcp_note_notes_create` was called twice from ordinary chat but timed out
+    with `urlopen error timed out`.
+- Root cause:
+  - `HermesMobileNotePluginWatchdog` had registered the Note service as
+    `127.0.0.1:4181`, which worked for Windows browser checks but was not
+    reachable from WSL Gateway MCP workers.
+  - The selected low Gateway profiles pointed Note MCP at a LAN address, which
+    also timed out from WSL for Note API calls.
+- Changes made in this Note workspace:
+  - `scripts/note-plugin-watchdog.ps1` default `HostName` is now `0.0.0.0`.
+  - `scripts/register-note-plugin-autostart.ps1` default `HostName` is now
+    `0.0.0.0`.
+  - `docs/HERMES_PLUGIN_MCP.md` documents that WSL-based Hermes Gateway MCP
+    should use the Windows WSL host gateway address for the Note API base URL.
+- Runtime repair:
+  - Re-registered the `HermesMobileNotePluginWatchdog` scheduled task with
+    `-HostName 0.0.0.0`.
+  - Restarted the Note plugin service; it now listens on `0.0.0.0:4181`.
+- Validation:
+  - Windows `http://127.0.0.1:4181/api/v1/hermes/plugin/manifest` returned
+    `200`.
+  - WSL `http://172.27.192.1:4181/api/v1/hermes/plugin/manifest` returned the
+    Note manifest.
+  - Hermes low Gateway profiles were rebuilt in the Agent workspace and now
+    point Note MCP at `http://172.27.192.1:4181`.
+  - A Note MCP stdio `tools/list` call from WSL passed.
+  - The requested note title `Note MCP 可用工具说明` was created and
+    search-confirmed with note id `9fcdadf8-9fba-42a3-97aa-9ff383c11317`.
+- Status:
+  - This Note workspace still has substantial pre-existing unrelated dirty
+    files. Do not blindly commit all dirty files or revert unrelated changes;
+    isolate any future commit carefully.
+- Privacy:
+  - No raw Note workspace key, Hermes owner key, launch token, cookie, note
+    body, attachment content, screenshot, or long log was stored.
 
 ## Read First Next Time
 

@@ -111,3 +111,45 @@ test('adds attachment metadata without file content', async () => {
   });
   assert.equal(saved.attachments[0].name, 'scan.pdf');
 });
+
+test('preserves bounded attachment metadata on create and update', async () => {
+  const service = createSubject();
+  const note = await service.createNote({
+    title: 'Attachment metadata',
+    body: 'Synthetic body',
+    attachments: [{
+      id: 'att_a',
+      name: 'receipt.png',
+      kind: 'image',
+      size: 42,
+      metadata: {
+        mime: 'image/png',
+        storageKey: 'note_owner/ab/hash.png',
+        sha256: 'abc123',
+        data_base64: 'must-not-persist'
+      },
+      createdAt: '2026-06-01T00:00:00.000Z'
+    }]
+  });
+
+  assert.equal(note.attachments[0].metadata.mime, 'image/png');
+  assert.equal(note.attachments[0].metadata.storageKey, 'note_owner/ab/hash.png');
+  assert.equal(note.attachments[0].metadata.data_base64, undefined);
+
+  const updated = await service.updateNote(note.id, {
+    attachments: [...note.attachments, {
+      id: 'att_b',
+      name: 'doc.docx',
+      kind: 'document',
+      metadata: {
+        mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        missingFile: true,
+        path: 'must-not-persist'
+      }
+    }]
+  });
+
+  assert.equal(updated.attachments.length, 2);
+  assert.equal(updated.attachments[1].metadata.missingFile, true);
+  assert.equal(updated.attachments[1].metadata.path, undefined);
+});

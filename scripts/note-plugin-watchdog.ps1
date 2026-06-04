@@ -1,7 +1,8 @@
 param(
   [int]$Port = 4181,
-  [string]$HostName = "127.0.0.1",
-  [string]$WorkspaceId = "note:yinxiang_import"
+  [string]$HostName = "0.0.0.0",
+  [string]$WorkspaceId = "note:owner",
+  [string]$RegistrationKeyPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -26,6 +27,23 @@ function Test-PortListening {
   return [bool]$connection
 }
 
+function Resolve-RegistrationKeyPath {
+  param([string]$ExplicitPath)
+  $candidates = @(
+    $ExplicitPath,
+    $env:NOTE_REGISTRATION_KEY_PATH,
+    $env:HERMES_MOBILE_NOTE_PLUGIN_OWNER_KEY_PATH,
+    "C:\ProgramData\HermesMobile\data\plugin-secrets\note-owner-key.txt",
+    (Join-Path $ProjectRoot "data\plugin-secrets\note-owner-key.txt")
+  ) | Where-Object { $_ }
+  foreach ($candidate in $candidates) {
+    if (Test-Path -LiteralPath $candidate) {
+      return (Resolve-Path -LiteralPath $candidate).Path
+    }
+  }
+  return ""
+}
+
 if (Test-PortListening -ListenPort $Port) {
   Write-WatchdogLog "Note plugin already listening on ${HostName}:${Port}"
   exit 0
@@ -40,7 +58,18 @@ if (-not $nodeCommand) {
 $env:HOST = $HostName
 $env:PORT = [string]$Port
 $env:NOTE_APP_WORKSPACE_ID = $WorkspaceId
+$env:NOTE_REQUIRE_APP_LAUNCH_TOKEN = "1"
 $env:NOTE_DB_PATH = Join-Path $ProjectRoot "data\note.sqlite3"
+$env:NOTE_ATTACHMENT_DB_PATH = Join-Path $ProjectRoot "data\attachment.sqlite3"
+$env:NOTE_ATTACHMENT_ROOT = Join-Path $ProjectRoot "data\attachments"
+$resolvedRegistrationKeyPath = Resolve-RegistrationKeyPath -ExplicitPath $RegistrationKeyPath
+if ($resolvedRegistrationKeyPath) {
+  $env:NOTE_REGISTRATION_KEY_PATH = $resolvedRegistrationKeyPath
+  Write-WatchdogLog "Using Note registration key file for workspace provisioning"
+} else {
+  Remove-Item Env:\NOTE_REGISTRATION_KEY_PATH -ErrorAction SilentlyContinue
+  Write-WatchdogLog "No Note registration key file found; workspace provisioning will fail closed"
+}
 
 Start-Process -FilePath $nodeCommand.Source `
   -ArgumentList @("scripts\note-server.js") `

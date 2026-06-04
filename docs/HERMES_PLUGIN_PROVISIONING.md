@@ -35,6 +35,12 @@ This file contains the Note registration credential only. It is not a workspace
 raw key, launch token, cookie, or browser credential, and it must not be exposed
 through frontend state, iframe URLs, logs, screenshots, docs, or MCP arguments.
 
+On Windows local production, `scripts/register-note-plugin-autostart.ps1` and
+`scripts/note-plugin-watchdog.ps1` pass the server-only key file into the Note
+process as `NOTE_REGISTRATION_KEY_PATH`. If the process is started without that
+environment value or explicit script argument, workspace registration must fail
+closed instead of silently creating an active workspace.
+
 ## Workspace Mapping
 
 Each Hermes workspace maps to one Note workspace:

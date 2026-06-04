@@ -149,6 +149,10 @@ function createNoteService({ store, idGenerator, clock }) {
       size: Number(attachmentInput.size || 0),
       createdAt: now()
     };
+    const metadata = normalizeAttachmentMetadata(attachmentInput.metadata);
+    if (Object.keys(metadata).length) {
+      attachment.metadata = metadata;
+    }
     const updated = {
       ...existing,
       attachments: [...(existing.attachments || []), attachment],
@@ -208,6 +212,9 @@ function normalizePatch(patch) {
   if (Object.prototype.hasOwnProperty.call(patch, 'tags')) {
     allowed.tags = normalizeTags(patch.tags);
   }
+  if (Object.prototype.hasOwnProperty.call(patch, 'attachments')) {
+    allowed.attachments = normalizeAttachments(patch.attachments);
+  }
   if (Object.prototype.hasOwnProperty.call(patch, 'notebookId')) {
     allowed.notebookId = String(patch.notebookId || 'inbox');
   }
@@ -258,13 +265,53 @@ function normalizeAttachments(attachments) {
     if (!name) {
       throw serviceError('NOTE_VALIDATION_FAILED', 'Attachment name is required');
     }
-    return {
+    const normalized = {
       id: attachment.id || `att_${index + 1}`,
       name,
       kind: attachment.kind || 'file',
       size: Number(attachment.size || 0)
     };
+    const metadata = normalizeAttachmentMetadata(attachment.metadata);
+    if (Object.keys(metadata).length) {
+      normalized.metadata = metadata;
+    }
+    if (attachment.createdAt) {
+      normalized.createdAt = String(attachment.createdAt);
+    }
+    return normalized;
   });
+}
+
+function normalizeAttachmentMetadata(metadata) {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return {};
+  }
+  const allowedKeys = new Set([
+    'mime',
+    'originalName',
+    'resourceHash',
+    'storageKey',
+    'sha256',
+    'size',
+    'source',
+    'missingFile',
+    'thumbnailStorageKey',
+    'thumbnailMime'
+  ]);
+  const normalized = {};
+  for (const [key, value] of Object.entries(metadata)) {
+    if (!allowedKeys.has(key)) {
+      continue;
+    }
+    if (typeof value === 'string') {
+      normalized[key] = value.slice(0, 1024);
+    } else if (typeof value === 'number' && Number.isFinite(value)) {
+      normalized[key] = value;
+    } else if (typeof value === 'boolean') {
+      normalized[key] = value;
+    }
+  }
+  return normalized;
 }
 
 function normalizeTags(tags) {

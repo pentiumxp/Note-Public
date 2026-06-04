@@ -5,11 +5,46 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Note</title>
     <script>
-      if (new URLSearchParams(window.location.search).get('embed') === 'hermes') {
-        document.documentElement.dataset.embed = 'hermes';
-      }
+      (function () {
+        var pluginThemes = { dark: true, light: true };
+        var params = new URLSearchParams(window.location.search);
+        var isHermesEmbed = params.get('embed') === 'hermes';
+        var darkQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+        function parentEffectiveTheme() {
+          if (!isHermesEmbed || window.parent === window) return '';
+          try {
+            var parentRoot = window.parent.document && window.parent.document.documentElement;
+            if (!parentRoot) return '';
+            var value = parentRoot.getAttribute('data-effective-theme')
+              || parentRoot.getAttribute('data-theme')
+              || parentRoot.getAttribute('data-plugin-theme')
+              || '';
+            return pluginThemes[value] ? value : '';
+          } catch (error) {
+            return '';
+          }
+        }
+        function queryTheme() {
+          var direct = params.get('pluginTheme')
+            || params.get('theme')
+            || params.get('colorScheme')
+            || params.get('appearance')
+            || '';
+          if (pluginThemes[direct]) return direct;
+          var dark = String(params.get('dark') || '').toLowerCase();
+          if (['1', 'true', 'yes'].includes(dark)) return 'dark';
+          if (['0', 'false', 'no'].includes(dark)) return 'light';
+          return '';
+        }
+        if (isHermesEmbed) {
+          document.documentElement.dataset.embed = 'hermes';
+        }
+        document.documentElement.dataset.theme = parentEffectiveTheme()
+          || queryTheme()
+          || (darkQuery && darkQuery.matches ? 'dark' : 'light');
+      })();
     </script>
-    <link rel="stylesheet" href="./styles.css?v=20260603-preview-fullscreen">
+    <link rel="stylesheet" href="./styles.css?v=20260604-right-thumb-carousel">
   </head>
   <body>
     <div id="app" class="app-shell">
@@ -168,6 +203,6 @@
 
     <input id="photo-input" type="file" accept="image/*" hidden>
     <input id="file-input" type="file" hidden>
-    <script src="./app.js?v=20260603-preview-fullscreen"></script>
+    <script src="./app.js?v=20260604-right-thumb-carousel"></script>
   </body>
 </html>

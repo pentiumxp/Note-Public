@@ -16,9 +16,12 @@ npm start
 
 ```text
 HOST=0.0.0.0
-PORT=4173
+PORT=4181
 NOTE_DB_PATH=./data/note.sqlite3
+NOTE_ATTACHMENT_DB_PATH=./data/attachment.sqlite3
+NOTE_ATTACHMENT_ROOT=./data/attachments
 NOTE_REGISTRATION_KEY=<provided outside repo>
+NOTE_REGISTRATION_KEY_PATH=<server-only key file>
 ```
 
 Example data paths:
@@ -29,6 +32,28 @@ NAS prod:    /volume1/docker/note/data/note.sqlite3
 ```
 
 Do not write raw registration keys, workspace-local keys, launch tokens, cookies, or database-private content into docs, logs, screenshots, handoff, or tests.
+
+## Windows User-Level Watchdog
+
+Local Hermes Mobile production uses `scripts/register-note-plugin-autostart.ps1`
+to register `HermesMobileNotePluginWatchdog` under the current Windows user.
+The watchdog keeps the Note plugin listening on `0.0.0.0:4181` and starts the
+service with:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\register-note-plugin-autostart.ps1 `
+  -Port 4181 `
+  -HostName 0.0.0.0 `
+  -WorkspaceId note:owner `
+  -RegistrationKeyPath C:\ProgramData\HermesMobile\data\plugin-secrets\note-owner-key.txt
+```
+
+If `-RegistrationKeyPath` is omitted, the registration script and watchdog try
+`C:\ProgramData\HermesMobile\data\plugin-secrets\note-owner-key.txt` before
+falling back to environment variables. The Note service must receive the
+registration key path at process startup; otherwise Hermes workspace
+provisioning fails closed with `registration_key_invalid` even when Hermes
+itself has already created the key file.
 
 ## Required Before Deployment
 

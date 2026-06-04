@@ -4,6 +4,8 @@ const crypto = require('node:crypto');
 
 const DEFAULT_SCOPES = Object.freeze(['notes:read', 'notes:write', 'notes:search']);
 const TOKEN_TTL_SECONDS = 300;
+const APPEARANCE_THEMES = Object.freeze(['dark', 'light']);
+const DEFAULT_APPEARANCE = Object.freeze({ theme: 'light' });
 
 const PLUGIN_MANIFEST = Object.freeze({
   id: 'note',
@@ -37,6 +39,13 @@ const PLUGIN_MANIFEST = Object.freeze({
     sameOriginProxy: true,
     postMessage: true,
     themeInheritance: true
+  },
+  appearance_sync: {
+    theme: APPEARANCE_THEMES,
+    launch_field: 'appearance',
+    entry_query: {
+      theme: 'pluginTheme'
+    }
   }
 });
 
@@ -83,6 +92,7 @@ function createHermesPluginService(options) {
       throw pluginError('permission_denied', 'Workspace key is required', 403);
     }
     const normalized = normalizeLaunchBody(body);
+    const appearance = normalizeAppearance(body.appearance);
     const workspace = await workspaceStore.getWorkspace(normalized.workspace_id);
     if (!workspace) {
       throw pluginError('workspace_not_registered', 'Workspace is not registered', 404);
@@ -95,10 +105,12 @@ function createHermesPluginService(options) {
     await tokenStore.saveLaunchToken({
       token,
       workspace_id: workspace.workspace_id,
-      expires_at: expiresAt
+      expires_at: expiresAt,
+      appearance
     });
     return {
-      entry_path: `/note.html?embed=hermes&launch=${encodeURIComponent(token)}`,
+      entry_path: `/note.html?embed=hermes&launch=${encodeURIComponent(token)}&pluginTheme=${encodeURIComponent(appearance.theme)}`,
+      appearance,
       expires_in: TOKEN_TTL_SECONDS,
       expires_in_seconds: TOKEN_TTL_SECONDS
     };
@@ -187,6 +199,16 @@ function normalizeLaunchBody(body) {
   };
 }
 
+function normalizeAppearance(value) {
+  if (!value || typeof value !== 'object') {
+    return { ...DEFAULT_APPEARANCE };
+  }
+  const theme = String(value.theme || value.appearance || value.mode || value.colorScheme || '').trim().toLowerCase();
+  return {
+    theme: APPEARANCE_THEMES.includes(theme) ? theme : DEFAULT_APPEARANCE.theme
+  };
+}
+
 function assertWorkspaceMapping(workspaceId, hermesWorkspaceId, targetWorkspaceId) {
   if (!workspaceId.startsWith('note:') || workspaceId.length <= 5) {
     throw pluginError('invalid_workspace', 'workspace_id must use note:<hermes_workspace_id>', 400);
@@ -265,5 +287,6 @@ module.exports = {
   createHermesPluginService,
   createMemoryLaunchTokenStore,
   hashRawKey,
+  normalizeAppearance,
   pluginError
 };

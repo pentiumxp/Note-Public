@@ -13,6 +13,23 @@ from pathlib import Path
 from typing import Any
 
 
+MAX_ATTACHMENTS = 8
+MAX_ATTACHMENT_BASE64_CHARS = 12 * 1024 * 1024
+ATTACHMENT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string", "description": "Attachment display name, including extension when available."},
+        "kind": {"type": "string", "enum": ["image", "document", "audio", "file"]},
+        "mime": {"type": "string"},
+        "size": {"type": "integer", "minimum": 0},
+        "data_base64": {"type": "string", "description": "Bounded base64 file payload. Local paths and URLs are not accepted."},
+        "content_base64": {"type": "string", "description": "Alias for data_base64."},
+        "base64": {"type": "string", "description": "Alias for data_base64."},
+    },
+    "required": ["name"],
+    "additionalProperties": False,
+}
+
 TOOLS = [
     {
         "name": "notes_search",
@@ -46,20 +63,21 @@ TOOLS = [
     },
     {
         "name": "notes_create",
-        "description": "Create a note in the bound Note workspace.",
+        "description": "Create a note in the bound Note workspace. Optional attachments are saved from bounded base64 payloads.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "title": {"type": "string"},
                 "body": {"type": "string"},
                 "tags": {"type": "array", "items": {"type": "string"}},
+                "attachments": {"type": "array", "maxItems": MAX_ATTACHMENTS, "items": ATTACHMENT_SCHEMA},
             },
             "required": ["title", "body"],
         },
     },
     {
         "name": "notes_update",
-        "description": "Update title, body, or tags for one note in the bound Note workspace.",
+        "description": "Update title, body, or tags for one note in the bound Note workspace. Optional attachments are appended, not used to replace existing attachments.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -67,6 +85,7 @@ TOOLS = [
                 "title": {"type": "string"},
                 "body": {"type": "string"},
                 "tags": {"type": "array", "items": {"type": "string"}},
+                "attachments": {"type": "array", "maxItems": MAX_ATTACHMENTS, "items": ATTACHMENT_SCHEMA},
             },
             "required": ["note_id"],
         },
@@ -88,6 +107,24 @@ TOOLS = [
 ]
 
 FORBIDDEN_ARGUMENTS = {"workspace", "workspace_id", "access_key", "key", "token", "launch"}
+ALLOWED_ATTACHMENT_FIELDS = {"name", "kind", "mime", "size", "data_base64", "content_base64", "base64"}
+FORBIDDEN_ATTACHMENT_FIELDS = {
+    "path",
+    "file",
+    "filePath",
+    "file_path",
+    "localPath",
+    "local_path",
+    "url",
+    "workspace",
+    "workspace_id",
+    "access_key",
+    "key",
+    "token",
+    "launch",
+    "storageKey",
+    "storage_key",
+}
 
 
 class ConfigError(Exception):
@@ -119,11 +156,16 @@ def main() -> int:
             request = json.loads(line)
             response = handle_rpc(request, context)
         except Exception as exc:  # MCP wrappers fail closed and bounded.
+            request_id = request.get("id") if isinstance(locals().get("request"), dict) else None
+            if request_id is None:
+                continue
             response = {
                 "jsonrpc": "2.0",
-                "id": None,
+                "id": request_id,
                 "error": {"code": -32000, "message": bounded_error(exc)},
             }
+        if response is None:
+            continue
         sys.stdout.write(json.dumps(response, ensure_ascii=False) + "\n")
         sys.stdout.flush()
     return 0
@@ -151,11 +193,21 @@ def load_context(workspace: Path, api_base_url: str) -> dict[str, Any]:
     }
 
 
-def handle_rpc(request: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+def handle_rpc(request: dict[str, Any], context: dict[str, Any]) -> dict[str, Any] | None:
     method = request.get("method")
     request_id = request.get("id")
+    if request_id is None:
+        return None
     if method == "initialize":
-        return {"jsonrpc": "2.0", "id": request_id, "result": {"protocolVersion": "2024-11-05", "capabilities": {"tools": {}}}}
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {"tools": {}},
+                "serverInfo": {"name": "note", "version": "1.0.0"},
+            },
+        }
     if method == "tools/list":
         return {"jsonrpc": "2.0", "id": request_id, "result": {"tools": TOOLS}}
     if method == "tools/call":
@@ -179,9 +231,17 @@ def call_tool(name: str, arguments: dict[str, Any], context: dict[str, Any]) -> 
     if name == "notes_get":
         return request_json(context, "GET", "/api/v1/notes/" + quote_required(arguments, "note_id"))
     if name == "notes_create":
-        return request_json(context, "POST", "/api/v1/notes", body={"title": arguments.get("title"), "body": arguments.get("body"), "tags": arguments.get("tags") or []})
+        body = {"title": arguments.get("title"), "body": arguments.get("body"), "tags": arguments.get("tags") or []}
+        attachments = bounded_attachments(arguments.get("attachments"))
+        if attachments:
+            body["attachments"] = attachments
+        return request_json(context, "POST", "/api/v1/notes", body=body)
     if name == "notes_update":
         patch = {key: arguments[key] for key in ("title", "body", "tags") if key in arguments}
+        if "attachments" in arguments:
+            attachments = bounded_attachments(arguments.get("attachments"))
+            if attachments:
+                patch["attachments"] = attachments
         return request_json(context, "PATCH", "/api/v1/notes/" + quote_required(arguments, "note_id"), body=patch)
     if name == "notes_delete":
         return request_json(context, "DELETE", "/api/v1/notes/" + quote_required(arguments, "note_id"))
@@ -231,6 +291,40 @@ def bounded_limit(value: Any) -> int:
     except (TypeError, ValueError):
         parsed = 20
     return max(1, min(50, parsed))
+
+
+def bounded_attachments(value: Any) -> list[dict[str, Any]]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ConfigError("note_mcp_attachments_invalid")
+    if len(value) > MAX_ATTACHMENTS:
+        raise ConfigError("note_mcp_attachments_too_many")
+    cleaned: list[dict[str, Any]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            raise ConfigError("note_mcp_attachments_invalid")
+        if FORBIDDEN_ATTACHMENT_FIELDS.intersection(item.keys()):
+            raise ConfigError("note_mcp_attachment_field_forbidden")
+        attachment: dict[str, Any] = {}
+        for key in ALLOWED_ATTACHMENT_FIELDS:
+            if key not in item:
+                continue
+            raw = item[key]
+            if key in {"data_base64", "content_base64", "base64"}:
+                text = str(raw or "").strip()
+                if len(text) > MAX_ATTACHMENT_BASE64_CHARS:
+                    raise ConfigError("note_mcp_attachment_too_large")
+                attachment[key] = text
+            elif key == "size":
+                try:
+                    attachment[key] = max(0, int(raw or 0))
+                except (TypeError, ValueError):
+                    attachment[key] = 0
+            else:
+                attachment[key] = str(raw or "").strip()
+        cleaned.append(attachment)
+    return cleaned
 
 
 def bounded_error(exc: Exception) -> str:

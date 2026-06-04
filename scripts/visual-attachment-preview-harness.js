@@ -36,7 +36,10 @@ async function main() {
       rows: document.querySelectorAll(".note-swipe-row").length,
       inlineChips: document.querySelectorAll(".note-row-image-chip,.note-row-attachment-chip").length,
       rightThumbs: document.querySelectorAll(".note-thumb").length,
-      imageChips: document.querySelectorAll(".note-row-image-chip").length,
+      imageChips: document.querySelectorAll(".note-thumb-image").length,
+      multiImageThumbs: [...document.querySelectorAll(".note-row-media")]
+        .filter((item) => item.querySelector(".note-thumb-image") && item.querySelector(".note-attachment-count"))
+        .length,
       attachmentTextVisible: [...document.querySelectorAll(".note-row-meta,.note-row-attachment-chip")]
         .some((item) => item.textContent.includes("附件")),
       attachmentSnippetVisible: [...document.querySelectorAll(".note-row-snippet")]
@@ -44,23 +47,28 @@ async function main() {
       fileIcons: document.querySelectorAll(".file-type-icon").length,
       pdfIcons: document.querySelectorAll(".file-type-pdf").length,
       wordIcons: document.querySelectorAll(".file-type-word").length,
-      imageChipUsesThumbnail: Boolean(document.querySelector(".note-row-image-chip img")?.getAttribute("src")?.includes("/thumbnail")),
-      imageChipHasFallback: Boolean(document.querySelector(".note-row-image-chip img")?.getAttribute("data-fallback-src")?.includes("/api/v1/app/attachments/")),
-      brokenImageChips: [...document.querySelectorAll(".note-row-image-chip img")]
+      imageChipUsesThumbnail: Boolean(document.querySelector(".note-thumb-image img")?.getAttribute("src")?.includes("/thumbnail")),
+      imageChipHasFallback: Boolean(document.querySelector(".note-thumb-image img")?.getAttribute("data-fallback-src")?.includes("/api/v1/app/attachments/")),
+      brokenImageChips: [...document.querySelectorAll(".note-thumb-image img")]
         .filter((img) => img.complete && img.naturalWidth === 0)
         .length,
     }));
-    assert.ok(list.inlineChips > 0, "list should render attachment chips below note titles");
-    assert.equal(list.rightThumbs, 0, "list should not render the old right-side thumbnail block");
-    assert.ok(list.imageChips > 0, "fixture workspace should expose at least one image chip");
-    assert.equal(list.imageChipUsesThumbnail, true, "list image chips should load generated thumbnail URLs, not original files");
-    assert.equal(list.imageChipHasFallback, true, "list image chips should keep the original attachment URL as a fallback");
-    assert.equal(list.brokenImageChips, 0, "list image thumbnail chips should resolve to visible images");
+    assert.equal(list.inlineChips, 0, "list should not render attachment chips below note titles");
+    assert.ok(list.rightThumbs > 0, "list should render compact right-side thumbnails or file icons");
+    assert.ok(list.imageChips > 0, "fixture workspace should expose at least one right-side image thumbnail");
+    assert.equal(list.imageChipUsesThumbnail, true, "right-side image thumbnails should load generated thumbnail URLs, not original files");
+    assert.equal(list.imageChipHasFallback, true, "right-side image thumbnails should keep the original attachment URL as a fallback");
+    assert.equal(list.brokenImageChips, 0, "right-side image thumbnails should resolve to visible images");
     assert.equal(list.attachmentTextVisible, false, "list attachment thumbnails should not show the attachment text label");
     assert.equal(list.attachmentSnippetVisible, false, "list should hide attachment-only placeholder snippets");
     assert.ok(list.fileIcons > 0, "list should render typed file icons for non-image attachments");
 
-    await page.locator(".note-row-image-chip").first().click();
+    const multiImageThumb = page.locator(".note-row-media:has(.note-thumb-image):has(.note-attachment-count) .note-thumb-image").first();
+    if (await multiImageThumb.count()) {
+      await multiImageThumb.click();
+    } else {
+      await page.locator(".note-thumb-image").first().click();
+    }
     await page.waitForSelector(".image-preview-overlay", { timeout: 5000 });
 
     const preview = await page.evaluate(() => ({
@@ -69,12 +77,18 @@ async function main() {
       closeButton: Boolean(document.querySelector(".image-preview-close")),
       inputs: document.querySelectorAll(".image-preview-overlay input, .image-preview-overlay textarea").length,
       editorOpen: document.querySelector("#editor-panel")?.classList.contains("is-open"),
+      carouselControls: document.querySelectorAll(".image-preview-nav").length,
+      carouselCounter: document.querySelector(".image-preview-counter")?.textContent || "",
     }));
     assert.equal(preview.overlay, true, "clicking an image chip should open image preview");
     assert.equal(preview.headVisible, false, "image preview should not show the old title/input-like header");
     assert.equal(preview.closeButton, true, "image preview should still have a close button");
     assert.equal(preview.inputs, 0, "image preview should not contain inputs");
     assert.equal(preview.editorOpen, false, "clicking an image chip should not open the note editor");
+    if (list.multiImageThumbs > 0) {
+      assert.equal(preview.carouselControls, 2, "multi-image preview should expose previous and next controls");
+      assert.match(preview.carouselCounter, /^\d+\/\d+$/, "multi-image preview should expose a bounded counter");
+    }
 
     await page.locator(".image-preview-close").click();
     await page.waitForSelector(".image-preview-overlay", { state: "detached", timeout: 5000 });

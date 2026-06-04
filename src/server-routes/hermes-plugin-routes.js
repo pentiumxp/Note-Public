@@ -1,38 +1,51 @@
 'use strict';
 
 const { createNoteService } = require('../services/note-service');
+const { materializeMcpAttachments, recordMcpAttachmentAssets } = require('../services/mcp-attachment-service');
 const { createSqliteNoteStore } = require('../stores/sqlite-note-store');
 
-function createHermesPluginRoutes({ pluginService, db, idGenerator, clock, appWorkspaceId }) {
+function createHermesPluginRoutes({ pluginService, db, idGenerator, clock, appWorkspaceId, requireAppLaunchToken = false, attachmentRoot, attachmentStore = null }) {
   return async function route(request, response, context) {
     if (request.method === 'GET' && context.pathname === '/api/v1/app/workspace') {
-      return sendJson(response, 200, getAppWorkspaceSnapshot(db, appWorkspaceId || 'note:yinxiang_import'));
+      return withAppWorkspace(request, response, context, (appContext) => {
+        return sendJson(response, 200, getAppWorkspaceSnapshot(db, appContext.workspaceId, appContext));
+      });
     }
 
     const appNoteMatch = /^\/api\/v1\/app\/notes\/([^/]+)$/.exec(context.pathname);
     if (appNoteMatch && request.method === 'GET') {
-      const note = getAppNote(db, appWorkspaceId || 'note:yinxiang_import', decodeURIComponent(appNoteMatch[1]));
-      return note ? sendJson(response, 200, { note }) : sendJson(response, 404, { ok: false, error: 'NOTE_NOT_FOUND' });
+      return withAppWorkspace(request, response, context, (appContext) => {
+        const note = getAppNote(db, appContext.workspaceId, decodeURIComponent(appNoteMatch[1]), appContext);
+        return note ? sendJson(response, 200, { note }) : sendJson(response, 404, { ok: false, error: 'NOTE_NOT_FOUND' });
+      });
     }
 
     if (appNoteMatch && request.method === 'DELETE') {
-      const deleted = deleteAppNote(db, appWorkspaceId || 'note:yinxiang_import', decodeURIComponent(appNoteMatch[1]));
-      return deleted ? sendJson(response, 200, { ok: true, id: deleted.id, deleted: true }) : sendJson(response, 404, { ok: false, error: 'NOTE_NOT_FOUND' });
+      return withAppWorkspace(request, response, context, (appContext) => {
+        const deleted = deleteAppNote(db, appContext.workspaceId, decodeURIComponent(appNoteMatch[1]));
+        return deleted ? sendJson(response, 200, { ok: true, id: deleted.id, deleted: true }) : sendJson(response, 404, { ok: false, error: 'NOTE_NOT_FOUND' });
+      });
     }
 
     const appAttachmentThumbnailMatch = /^\/api\/v1\/app\/attachments\/([^/]+)\/thumbnail$/.exec(context.pathname);
     if (appAttachmentThumbnailMatch && request.method === 'GET') {
-      return sendAppAttachment(response, db, appWorkspaceId || 'note:yinxiang_import', decodeURIComponent(appAttachmentThumbnailMatch[1]), { thumbnail: true });
+      return withAppWorkspace(request, response, context, (appContext) => {
+        return sendAppAttachment(response, db, appContext.workspaceId, decodeURIComponent(appAttachmentThumbnailMatch[1]), { thumbnail: true });
+      });
     }
 
     const appAttachmentPreviewMatch = /^\/api\/v1\/app\/attachments\/([^/]+)\/preview$/.exec(context.pathname);
     if (appAttachmentPreviewMatch && request.method === 'GET') {
-      return sendAppAttachmentPreview(response, db, appWorkspaceId || 'note:yinxiang_import', decodeURIComponent(appAttachmentPreviewMatch[1]));
+      return withAppWorkspace(request, response, context, (appContext) => {
+        return sendAppAttachmentPreview(response, db, appContext.workspaceId, decodeURIComponent(appAttachmentPreviewMatch[1]));
+      });
     }
 
     const appAttachmentMatch = /^\/api\/v1\/app\/attachments\/([^/]+)$/.exec(context.pathname);
     if (appAttachmentMatch && request.method === 'GET') {
-      return sendAppAttachment(response, db, appWorkspaceId || 'note:yinxiang_import', decodeURIComponent(appAttachmentMatch[1]));
+      return withAppWorkspace(request, response, context, (appContext) => {
+        return sendAppAttachment(response, db, appContext.workspaceId, decodeURIComponent(appAttachmentMatch[1]));
+      });
     }
 
     if (request.method === 'GET' && context.pathname === '/api/v1/hermes/plugin/manifest') {
@@ -90,27 +103,68 @@ function createHermesPluginRoutes({ pluginService, db, idGenerator, clock, appWo
     const noteMatch = /^\/api\/v1\/notes\/([^/]+)$/.exec(context.pathname);
     if (noteMatch && request.method === 'GET') {
       return withWorkspace(request, response, pluginService, db, async (service) => {
-        sendJson(response, 200, { note: await service.getNote(decodeURIComponent(noteMatch[1])) });
+        sendJson(response, 200, { note: noteDetail(await service.getNote(decodeURIComponent(noteMatch[1]))) });
       });
     }
 
     if (context.pathname === '/api/v1/notes' && request.method === 'POST') {
-      return withWorkspace(request, response, pluginService, db, async (service) => {
+      return withWorkspace(request, response, pluginService, db, async (service, workspace) => {
         const body = await readJson(request);
-        const note = await service.createNote({
+        let note = await service.createNote({
           title: body.title,
           body: body.body || '',
           tags: body.tags || [],
           notebookId: body.notebookId || 'inbox'
         });
+        try {
+          const attachments = materializeMcpAttachments(body.attachments, {
+            workspaceId: workspace.workspace_id,
+            noteId: note.id,
+            attachmentRoot,
+            idGenerator,
+            clock
+          });
+          if (attachments.length) {
+            note = await service.updateNote(note.id, { attachments });
+            recordMcpAttachmentAssets(attachments, {
+              workspaceId: workspace.workspace_id,
+              noteId: note.id,
+              attachmentStore
+            });
+          }
+        } catch (error) {
+          await service.deleteNote(note.id).catch(() => {});
+          throw error;
+        }
         sendJson(response, 201, { note: noteSummary(note) });
       });
     }
 
     if (noteMatch && request.method === 'PATCH') {
-      return withWorkspace(request, response, pluginService, db, async (service) => {
+      return withWorkspace(request, response, pluginService, db, async (service, workspace) => {
+        const noteId = decodeURIComponent(noteMatch[1]);
         const patch = await readJson(request);
-        const note = await service.updateNote(decodeURIComponent(noteMatch[1]), patch);
+        let newAttachments = [];
+        if (Object.prototype.hasOwnProperty.call(patch, 'attachments')) {
+          const existing = await service.getNote(noteId);
+          const attachments = materializeMcpAttachments(patch.attachments, {
+            workspaceId: workspace.workspace_id,
+            noteId,
+            attachmentRoot,
+            idGenerator,
+            clock
+          });
+          patch.attachments = [...(existing.attachments || []), ...attachments];
+          newAttachments = attachments;
+        }
+        const note = await service.updateNote(noteId, patch);
+        if (newAttachments.length) {
+          recordMcpAttachmentAssets(newAttachments, {
+            workspaceId: workspace.workspace_id,
+            noteId,
+            attachmentStore
+          });
+        }
         sendJson(response, 200, { note: noteSummary(note) });
       });
     }
@@ -145,9 +199,44 @@ function createHermesPluginRoutes({ pluginService, db, idGenerator, clock, appWo
       return sendError(response, error);
     }
   }
+
+  async function withAppWorkspace(request, response, context, handler) {
+    try {
+      const appContext = await resolveAppWorkspaceContext(request, context.url);
+      return await handler(appContext);
+    } catch (error) {
+      return sendError(response, error);
+    }
+  }
+
+  async function resolveAppWorkspaceContext(request, url) {
+    const launchToken = appLaunchToken(request, url);
+    if (launchToken) {
+      const launch = await pluginService.verifyLaunchToken(launchToken);
+      return {
+        workspaceId: launch.workspace_id,
+        launchToken
+      };
+    }
+    if (requireAppLaunchToken) {
+      throw routeError('permission_denied', 'Launch token is required for app workspace access', 403);
+    }
+    return {
+      workspaceId: appWorkspaceId || 'note:yinxiang_import',
+      launchToken: ''
+    };
+  }
 }
 
-function getAppWorkspaceSnapshot(db, workspaceId) {
+function appLaunchToken(request, url) {
+  const headerToken = String(request.headers['x-note-launch-token'] || '').trim();
+  if (headerToken) {
+    return headerToken;
+  }
+  return String(url.searchParams.get('launch') || '').trim();
+}
+
+function getAppWorkspaceSnapshot(db, workspaceId, options = {}) {
   const workspace = db.prepare(`
     select workspace_id, hermes_workspace_id, display_name, status
     from plugin_workspaces
@@ -173,7 +262,7 @@ function getAppWorkspaceSnapshot(db, workspaceId) {
     order by updated_at desc
     limit 1000
   `).all(workspaceId);
-  const notes = rows.map((row) => appNoteSummary(db, workspaceId, row));
+  const notes = rows.map((row) => appNoteSummary(db, workspaceId, row, options));
   return {
     workspace: {
       id: workspace.workspace_id,
@@ -190,7 +279,7 @@ function getAppWorkspaceSnapshot(db, workspaceId) {
   };
 }
 
-function getAppNote(db, workspaceId, noteId) {
+function getAppNote(db, workspaceId, noteId, options = {}) {
   const row = db.prepare(`
     select id, title, body, notebook_id, tags_json, tasks_json, shortcut, reminder_at, status, created_at, updated_at
     from notes
@@ -199,7 +288,7 @@ function getAppNote(db, workspaceId, noteId) {
   if (!row) {
     return null;
   }
-  return appNoteDetail(db, workspaceId, row);
+  return appNoteDetail(db, workspaceId, row, options);
 }
 
 function deleteAppNote(db, workspaceId, noteId) {
@@ -215,8 +304,8 @@ function deleteAppNote(db, workspaceId, noteId) {
   return { id: noteId };
 }
 
-function appNoteSummary(db, workspaceId, row) {
-  const attachments = attachmentSummaries(db, workspaceId, row.id);
+function appNoteSummary(db, workspaceId, row, options = {}) {
+  const attachments = attachmentSummaries(db, workspaceId, row.id, options);
   const snippet = readableText(row.body, attachments).slice(0, 180);
   return {
     id: row.id,
@@ -235,16 +324,16 @@ function appNoteSummary(db, workspaceId, row) {
   };
 }
 
-function appNoteDetail(db, workspaceId, row) {
-  const attachments = attachmentSummaries(db, workspaceId, row.id);
+function appNoteDetail(db, workspaceId, row, options = {}) {
+  const attachments = attachmentSummaries(db, workspaceId, row.id, options);
   return {
-    ...appNoteSummary(db, workspaceId, row),
+    ...appNoteSummary(db, workspaceId, row, options),
     attachments,
     body: normalizeImportedBody(row.body, attachments)
   };
 }
 
-function attachmentSummaries(db, workspaceId, noteId) {
+function attachmentSummaries(db, workspaceId, noteId, options = {}) {
   return db.prepare(`
     select id, name, kind, size, metadata_json, created_at
     from attachments
@@ -260,12 +349,21 @@ function attachmentSummaries(db, workspaceId, noteId) {
       mime: metadata.mime || '',
       resourceHash: metadata.resourceHash || '',
       storageKey: metadata.storageKey || '',
-      url: metadata.storageKey ? `/api/v1/app/attachments/${encodeURIComponent(row.id)}` : '',
-      thumbnailUrl: metadata.thumbnailStorageKey ? `/api/v1/app/attachments/${encodeURIComponent(row.id)}/thumbnail` : '',
-      previewUrl: metadata.storageKey ? `/api/v1/app/attachments/${encodeURIComponent(row.id)}/preview` : '',
+      url: metadata.storageKey ? scopedAppUrl(`/api/v1/app/attachments/${encodeURIComponent(row.id)}`, options) : '',
+      thumbnailUrl: metadata.thumbnailStorageKey ? scopedAppUrl(`/api/v1/app/attachments/${encodeURIComponent(row.id)}/thumbnail`, options) : '',
+      previewUrl: metadata.storageKey ? scopedAppUrl(`/api/v1/app/attachments/${encodeURIComponent(row.id)}/preview`, options) : '',
       createdAt: row.created_at
     };
   });
+}
+
+function scopedAppUrl(pathname, options = {}) {
+  const launchToken = String(options.launchToken || '').trim();
+  if (!launchToken) {
+    return pathname;
+  }
+  const separator = pathname.includes('?') ? '&' : '?';
+  return `${pathname}${separator}launch=${encodeURIComponent(launchToken)}`;
 }
 
 function normalizeImportedBody(body, attachments = []) {
@@ -556,6 +654,28 @@ function noteSummary(note) {
   };
 }
 
+function noteDetail(note) {
+  return {
+    ...noteSummary(note),
+    body: note.body || '',
+    notebookId: note.notebookId || 'inbox',
+    attachments: (note.attachments || []).map(mcpAttachmentSummary)
+  };
+}
+
+function mcpAttachmentSummary(attachment) {
+  const metadata = attachment.metadata || {};
+  return {
+    id: attachment.id,
+    name: attachment.name,
+    kind: attachment.kind || 'file',
+    size: Number(attachment.size || metadata.size || 0),
+    mime: metadata.mime || '',
+    createdAt: attachment.createdAt || null,
+    available: Boolean(metadata.storageKey && !metadata.missingFile)
+  };
+}
+
 function boundedLimit(value) {
   const parsed = Number(value || 20);
   if (!Number.isFinite(parsed)) {
@@ -576,6 +696,13 @@ function sendError(response, error) {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
   response.end(JSON.stringify({ ok: false, error: code }));
   return true;
+}
+
+function routeError(code, message, status) {
+  const error = new Error(message);
+  error.code = code;
+  error.status = status;
+  return error;
 }
 
 module.exports = {

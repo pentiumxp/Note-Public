@@ -18,6 +18,7 @@ git diff --check
 - Hermes plugin routes must delegate registration, launch, hashing, and workspace validation to `src/services/hermes-plugin-service.js`.
 - SQLite persistence must keep every query scoped by `workspace_id`.
 - MCP wrapper must expose local tool names only; Hermes Agent owns the `mcp_note_` callable prefix.
+- MCP attachment saves must accept only bounded base64 payloads, reject model-provided paths/URLs/keys, and preserve only sanitized metadata.
 
 ## Module Tests
 
@@ -26,8 +27,11 @@ git diff --check
 | Note service | `tests/note-service.test.js` | H2 |
 | Workspace projection | `tests/workspace-view-model.test.js` | H2 |
 | Hermes plugin service | `tests/hermes-plugin-service.test.js` | H2 |
+| Embedded app workspace isolation | `tests/app-launch-workspace-routes.test.js` | H2 |
 | SQLite isolation | `tests/sqlite-note-store.test.js` | H2 |
 | MCP wrapper contract | `tests/mcp-wrapper.test.js` | H2 |
+| MCP attachment materialization | `tests/mcp-attachment-service.test.js` | H2 |
+| MCP note attachment routes | `tests/mcp-notes-attachment-routes.test.js` | H2 |
 | Embedded iframe contract | `tests/embedded-contract.test.js` | H2 |
 | Yinxiang `.notes` import parser | `tests/yinxiang-import.test.js` | H2 |
 | Architecture guardrail | `scripts/check-architecture.js` | H2 |
@@ -56,6 +60,7 @@ H2:
 - create menu surface parity.
 - plugin manifest/provisioning/launch contracts.
 - workspace-local MCP access.
+- MCP attachment save contract.
 - same-origin iframe message contract.
 
 H3:
