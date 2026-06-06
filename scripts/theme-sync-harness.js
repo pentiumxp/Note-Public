@@ -18,7 +18,7 @@ function loadPlaywright() {
 }
 
 async function main() {
-  const baseUrl = process.env.NOTE_VISUAL_BASE_URL || "http://127.0.0.1:4173/?embed=hermes&theme=dark";
+  const baseUrl = process.env.NOTE_VISUAL_BASE_URL || "http://127.0.0.1:4181/?embed=hermes&theme=dark";
   const { chromium } = loadPlaywright();
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 390, height: 740 }, isMobile: true, hasTouch: true });

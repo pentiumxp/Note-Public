@@ -17,7 +17,7 @@ const {
 } = require('../src/stores/sqlite-attachment-store');
 
 const root = path.join(process.cwd(), 'public');
-const port = Number(process.env.PORT || 4173);
+const port = Number(process.env.PORT || 4181);
 const host = process.env.HOST || '0.0.0.0';
 const dbPath = process.env.NOTE_DB_PATH || path.join(process.cwd(), 'data', 'note.sqlite3');
 const attachmentDbPath = process.env.NOTE_ATTACHMENT_DB_PATH || path.join(process.cwd(), 'data', 'attachment.sqlite3');

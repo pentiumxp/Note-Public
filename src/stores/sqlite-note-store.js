@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
+const { ensureReferenceGraphSchema } = require('./sqlite-reference-graph-store');
 
 function openNoteDatabase(dbPath) {
   if (dbPath !== ':memory:') {
@@ -77,6 +78,7 @@ function ensureSchema(db) {
     create index if not exists idx_attachments_workspace_note on attachments(workspace_id, note_id);
     create index if not exists idx_notebooks_workspace_name on notebooks(workspace_id, name);
   `);
+  ensureReferenceGraphSchema(db);
 }
 
 function upsertNotebook(db, notebook) {
@@ -287,6 +289,7 @@ function noteFromRow(db, workspaceId, row) {
 
   return {
     id: row.id,
+    workspaceId: row.workspace_id,
     title: row.title,
     body: row.body,
     notebookId: row.notebook_id,

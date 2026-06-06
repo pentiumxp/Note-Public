@@ -361,6 +361,11 @@ function normalizeThemeMode(input = {}) {
 function setNoteTheme(mode) {
   const normalized = mode === 'dark' ? 'dark' : 'light';
   document.documentElement.dataset.theme = normalized;
+  try {
+    localStorage.setItem('hermesWebTheme', normalized);
+  } catch {
+    // Ignore storage failures; the root dataset remains the source of truth.
+  }
 }
 
 function postHostEvent(type, payload) {
@@ -372,6 +377,9 @@ function postPluginMessage(type, payload = {}) {
 }
 
 function currentPluginRoute() {
+  if (document.querySelector('.file-preview-overlay')) {
+    return { surface: 'file_preview' };
+  }
   if (document.querySelector('.image-preview-overlay')) {
     return { surface: 'image_preview' };
   }
@@ -387,20 +395,25 @@ function currentPluginRoute() {
 function emitNavigationState() {
   const route = currentPluginRoute();
   const canGoBack = route.surface !== 'home';
-  const previewFullscreen = route.surface === 'image_preview';
+  const previewFullscreen = route.surface === 'image_preview' || route.surface === 'file_preview';
+  const previewKind = route.surface === 'file_preview' ? 'file' : 'image';
   postPluginMessage('note.plugin.navigation', {
     canGoBack,
     route,
     previewFullscreen,
     fullscreenPreview: previewFullscreen,
-    preview: previewFullscreen ? { kind: 'image', fullscreen: true } : { fullscreen: false }
+    preview: previewFullscreen ? { kind: previewKind, fullscreen: true } : { fullscreen: false }
   });
-  postHostEvent('plugin:navigationChanged', { canGoBack, surface: route.surface, previewFullscreen });
+  postHostEvent('plugin:navigationChanged', { canGoBack, surface: route.surface, previewFullscreen, previewKind });
 }
 
 function handlePluginBack() {
   const preview = document.querySelector('.image-preview-overlay');
   if (preview) {
+    if (window.TaskDocumentPreviewUi?.closeActivePreviewFromUser) {
+      window.TaskDocumentPreviewUi.closeActivePreviewFromUser();
+      return true;
+    }
     preview.remove();
     emitNavigationState();
     return true;
@@ -1369,50 +1382,35 @@ function openAttachmentPreview(attachment) {
     openImagePreview(attachment.url, attachment.name || info.label, { attachmentId: attachment.id });
     return;
   }
-  if (info.type === 'pdf') {
-    const url = `${attachment.url}#toolbar=0&navpanes=0&view=FitH`;
-    openPreviewOverlay({
-      label: attachment.name || 'PDF',
-      overlayClass: 'file-preview-overlay',
-      panelClass: 'file-preview-panel pdf-preview-panel',
-      content: `
-        <iframe class="file-preview-frame pdf-preview-frame" src="${escapeHtml(url)}" title="${escapeHtml(attachment.name || 'PDF')}"></iframe>
-        <a class="file-preview-open file-preview-floating-action" href="${escapeHtml(attachment.url)}" target="_blank" rel="noopener">打开原文件</a>
-      `
-    });
-    return;
-  }
-  if (info.type === 'word' && attachment.previewUrl) {
-    openPreviewOverlay({
-      label: attachment.name || info.label,
-      overlayClass: 'file-preview-overlay',
-      panelClass: 'file-preview-panel document-preview-panel',
-      content: `
-        <iframe class="file-preview-frame word-preview-frame" src="${escapeHtml(attachment.previewUrl)}" title="${escapeHtml(attachment.name || info.label)}"></iframe>
-        <div class="file-preview-floating-actions">
-          <a class="file-preview-open" href="${escapeHtml(attachment.url)}" target="_blank" rel="noopener">打开原文件</a>
-          <a class="file-preview-open file-preview-secondary" href="${escapeHtml(attachment.url)}" download>下载</a>
-        </div>
-      `
-    });
-    return;
-  }
+  const viewerUrl = attachmentViewerUrl(attachment, info);
   openPreviewOverlay({
     label: attachment.name || info.label,
     overlayClass: 'file-preview-overlay',
-    panelClass: 'file-preview-panel document-preview-panel',
+    panelClass: `file-preview-panel ${info.type === 'pdf' ? 'pdf-preview-panel' : 'document-preview-panel'}`,
     content: `
-      <div class="file-preview-card">
-        ${attachmentIconMarkup(attachment, 'large')}
-        <div class="file-preview-title">${escapeHtml(attachment.name || info.label)}</div>
-        <div class="file-preview-subtitle">${escapeHtml(info.label)}${attachment.size ? ` · ${formatSize(attachment.size)}` : ''}</div>
-        <div class="file-preview-actions">
-          <a class="file-preview-open" href="${escapeHtml(attachment.url)}" target="_blank" rel="noopener">打开文件</a>
-          <a class="file-preview-open file-preview-secondary" href="${escapeHtml(attachment.url)}" download>下载</a>
-        </div>
-      </div>
+      <iframe class="file-preview-frame ${escapeHtml(info.type)}-preview-frame" src="${escapeHtml(viewerUrl)}" title="${escapeHtml(attachment.name || info.label)}"></iframe>
     `
   });
+}
+
+function attachmentViewerUrl(attachment, info) {
+  const query = new URLSearchParams();
+  query.set('src', attachment.url);
+  query.set('name', attachment.name || info.label || 'File');
+  query.set('mime', attachment.mime || attachment.type || '');
+  query.set('size', String(attachment.size || 0));
+  query.set('embed', '1');
+  query.set('theme', document.documentElement.dataset.theme || 'light');
+  query.set('viewer_v', '20260604-proxy-preview-v3');
+  if (attachment.previewUrl) {
+    query.set('preview', attachment.previewUrl);
+  }
+  const viewer = info.type === 'pdf'
+    ? 'pdf-viewer.html'
+    : info.type === 'markdown'
+      ? 'markdown-viewer.html'
+      : 'file-viewer.html';
+  return `${viewer}?${query.toString()}`;
 }
 
 function openPreviewOverlay({ label, content, overlayClass = '', panelClass = '' }) {
@@ -1429,10 +1427,23 @@ function openPreviewOverlay({ label, content, overlayClass = '', panelClass = ''
       ${content}
     </section>
   `;
+  const previousPreviewUi = window.TaskDocumentPreviewUi;
+  let previewBridge = null;
   const close = () => {
     overlay.remove();
+    if (window.TaskDocumentPreviewUi === previewBridge) {
+      if (previousPreviewUi) {
+        window.TaskDocumentPreviewUi = previousPreviewUi;
+      } else {
+        delete window.TaskDocumentPreviewUi;
+      }
+    }
     emitNavigationState();
   };
+  previewBridge = Object.assign({}, previousPreviewUi || {}, {
+    closeActivePreviewFromUser: close
+  });
+  window.TaskDocumentPreviewUi = previewBridge;
   overlay.querySelector('.image-preview-backdrop').addEventListener('click', close);
   overlay.querySelector('.image-preview-close').addEventListener('click', close);
   document.body.append(overlay);
@@ -1541,31 +1552,39 @@ function attachmentIconMarkup(attachment, size = 'medium') {
 function attachmentTypeInfo(attachment = {}) {
   const name = String(attachment.name || '').toLowerCase();
   const mime = String(attachment.mime || attachment.type || '').toLowerCase();
-  if (attachment.kind === 'image' || mime.startsWith('image/')) return { type: 'image', short: '图', label: '图片' };
+  if (attachment.kind === 'image' || mime.startsWith('image/')) {
+    return { type: 'image', short: '\u56fe', label: '\u56fe\u7247' };
+  }
   if (mime === 'application/pdf' || name.endsWith('.pdf')) return { type: 'pdf', short: 'PDF', label: 'PDF' };
+  if (mime.includes('markdown') || /\.(md|markdown)$/i.test(name)) {
+    return { type: 'markdown', short: 'MD', label: 'Markdown' };
+  }
   if (mime.includes('word') || mime.includes('officedocument.wordprocessingml') || /\.(doc|docx)$/i.test(name)) {
-    return { type: 'word', short: 'W', label: 'Word 文档' };
+    return { type: 'word', short: 'W', label: 'Word \u6587\u6863' };
   }
   if (mime.includes('excel') || mime.includes('spreadsheetml') || /\.(xls|xlsx)$/i.test(name)) {
-    return { type: 'excel', short: 'X', label: 'Excel 表格' };
+    return { type: 'excel', short: 'X', label: 'Excel \u8868\u683c' };
   }
   if (mime.includes('powerpoint') || mime.includes('presentationml') || /\.(ppt|pptx)$/i.test(name)) {
-    return { type: 'ppt', short: 'P', label: '演示文稿' };
+    return { type: 'ppt', short: 'P', label: '\u6f14\u793a\u6587\u7a3f' };
   }
-  if (attachment.kind === 'audio' || mime.startsWith('audio/')) return { type: 'audio', short: '音', label: '音频' };
-  if (attachment.kind === 'document') return { type: 'document', short: '文', label: '文档' };
-  return { type: 'file', short: '□', label: '文件' };
+  if (mime.startsWith('text/') || /\.(txt|csv|json)$/i.test(name)) {
+    return { type: 'text', short: 'TXT', label: '\u6587\u672c' };
+  }
+  if (attachment.kind === 'audio' || mime.startsWith('audio/')) return { type: 'audio', short: '\u97f3', label: '\u97f3\u9891' };
+  if (attachment.kind === 'document') return { type: 'document', short: '\u6587', label: '\u6587\u6863' };
+  return { type: 'file', short: '\u25a1', label: '\u6587\u4ef6' };
 }
 
 function attachmentKindLabel(attachment) {
   const labels = {
-    image: '图片附件',
-    document: '文档附件',
-    audio: '录音附件',
-    file: '文件附件'
+    image: '\u56fe\u7247\u9644\u4ef6',
+    document: '\u6587\u6863\u9644\u4ef6',
+    audio: '\u5f55\u97f3\u9644\u4ef6',
+    file: '\u6587\u4ef6\u9644\u4ef6'
   };
-  const size = attachment.size ? ` · ${formatSize(attachment.size)}` : '';
-  const pending = attachment.pending ? ' · 待选择' : '';
+  const size = attachment.size ? ` \u00b7 ${formatSize(attachment.size)}` : '';
+  const pending = attachment.pending ? ' \u00b7 \u5f85\u9009\u62e9' : '';
   return `${labels[attachment.kind] || labels.file}${size}${pending}`;
 }
 

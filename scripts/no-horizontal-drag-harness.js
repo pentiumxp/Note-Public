@@ -51,7 +51,7 @@ function assertNoPageOverflow(metrics, label) {
 }
 
 async function main() {
-  const baseUrl = process.env.NOTE_VISUAL_BASE_URL || "http://127.0.0.1:4173/?embed=hermes";
+  const baseUrl = process.env.NOTE_VISUAL_BASE_URL || "http://127.0.0.1:4181/?embed=hermes";
   const { chromium } = loadPlaywright();
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({

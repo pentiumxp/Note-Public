@@ -39,7 +39,7 @@ behavior, or cross-plugin reference behavior:
 | `mcp_schema_endpoint` | MCP `tools/list` through the stdio wrapper and plugin manifest through HTTP |
 | `deploy_command` | Use the Home AI Mac access runbook; verify the current Note deploy script/path before production sync. |
 | `credential_locations` | Workspace-local ignored `.hermes-note` config/key files only by reference. Do not record raw keys or launch tokens here. |
-| `reference_contract_status` | `planned`; Note should own `note -> object` links first, then integrate with the shared Reference / Memory Graph contract. |
+| `reference_contract_status` | Note-local V1 slice implemented: SQLite object refs/edges/events/provenance, Note link wrappers, and Note `reference_*` contract. Cross-plugin orchestration remains owned by Hermes Mobile. |
 | `mobile_visual_harness_status` | Multiple local Playwright visual harnesses exist; Home AI Appium/iOS Simulator evidence is required for embedded shell, gesture, preview, safe-area, or PWA differences. |
 
 ## Required Local Validation
@@ -88,7 +88,7 @@ Minimum closure for Note production changes:
 
 ## Open Gaps
 
-- Implement Note link tools and Reference / Memory Graph V1 harness coverage.
+- Wire Hermes Mobile selected Gateway/profile closure for the new Note reference tools after deployment.
 - Add Note-specific Appium/iOS Simulator coverage for embedded preview,
   gesture, and installed-PWA shell behavior.
 - Keep the exact Mac production source and data roots current after the next

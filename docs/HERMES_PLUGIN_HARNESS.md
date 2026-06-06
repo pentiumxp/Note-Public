@@ -32,12 +32,17 @@ git diff --check
 | MCP config/key fail closed | `tests/mcp-wrapper.test.js` |
 | MCP `--no-workspace-override` rejects override args | `tests/mcp-wrapper.test.js` |
 | MCP tools/list returns local names | `tests/mcp-wrapper.test.js` |
+| MCP tools/list exposes Note link and Reference contract tools as local names | `tests/mcp-wrapper.test.js` |
+| Reference Graph SQLite tables, indexes, workspace isolation, and idempotency | `tests/reference-graph-store.test.js` |
+| Note link service creates Note-to-plugin links, lists backlinks, rejects invalid relations, and keeps outputs bounded | `tests/note-reference-service.test.js` |
+| Reference API routes are scoped to the bound workspace and expose Note `reference_*` contract without note body | `tests/reference-api-routes.test.js` |
+| Service-first route files stay below line budgets and main Hermes route delegates app/notes/reference behavior | `scripts/check-architecture.js` |
 | Embedded postMessage contract is bounded | `tests/embedded-contract.test.js` |
 | Embedded `embed=hermes` layout uses iframe-relative height and owns only Note bottom nav spacing | `tests/embedded-layout.test.js`, Playwright geometry smoke |
 | Swipe delete is visually hidden before swipe, reachable only after short swipe, and the embedded list shows dense rows after scrolling | `scripts/visual-swipe-delete-harness.js` |
 | Hermes host back is handled inside Note before the host exits the plugin | `scripts/embedded-back-harness.js` |
 | Embedded mobile page does not allow page-level horizontal dragging in home or editor states | `scripts/no-horizontal-drag-harness.js` |
-| Attachment thumbnails use typed icons, image chips open image preview, and file chips open bounded PDF/file preview | `scripts/visual-attachment-preview-harness.js` |
+| Attachment thumbnails use typed icons, image chips open image preview, and MD/Word/PDF file chips open copied Hermes in-app viewer shells | `tests/attachment-file-preview-routes.test.js`, `scripts/visual-attachment-preview-harness.js` |
 | Mobile list performance stays bounded by windowed initial rows and avoids full-list rerender on note open | `scripts/perf-note-ui-harness.js` |
 | Privacy scan excludes raw secrets and tokens | `scripts/privacy-scan.js` |
 
@@ -51,5 +56,7 @@ After Hermes Mobile writes `.hermes-note` files for a test workspace:
 4. Embed returned `entry_path` through the same-origin iframe proxy.
 5. Register MCP server `note` with `scripts/note_mcp_stdio.py`.
 6. Confirm Hermes Agent sees `mcp_note_notes_search` and not `mcp_note_mcp_note_notes_search`.
+7. If Reference Graph tools changed, confirm Hermes Agent sees single-prefix names
+   such as `mcp_note_notes_link_create` and `mcp_note_reference_get`.
 
 Do not paste raw keys or launch tokens into logs, screenshots, docs, or handoff.

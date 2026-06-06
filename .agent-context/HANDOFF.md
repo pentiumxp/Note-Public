@@ -501,3 +501,73 @@ Build a notes product that basically recreates China edition Yinxiang Biji/Evern
 - No Note code, service, production data, Gateway worker, note content,
   attachment bytes, launch token, or credential material was changed by this
   checker closure.
+
+## 2026-06-06 Home AI Central Contract Review
+
+- Added the Home AI platform contract pointer to `.agent-context/PROJECT_CONTEXT.md`.
+- Re-read the Note pointer document and central Home AI contract documents for:
+  deployment, plugin workspace contract, Reference / Memory Graph V1, graph
+  harness planning, mobile visual evidence, MCP tool upgrade closure, Mac
+  production access, and platform test matrix.
+- Architecture constraint for next work:
+  - do not implement ad-hoc Note cross-plugin references;
+  - align Note links with Reference / Memory Graph V1 object refs, edges,
+    backlinks, idempotency, permission intersection, and plugin reference
+    contract methods;
+  - treat browser Playwright checks as insufficient for shell/safe-area/gesture
+    changes when Appium/iOS Simulator or installed PWA evidence is required by
+    the central contract.
+- No Note code, service, production data, Gateway worker, note content,
+  attachment bytes, launch token, or credential material was changed in this
+  review.
+
+## 2026-06-06 Reference Graph Service-First Refactor
+
+- Implemented the Note-local Home AI Reference / Memory Graph V1 slice:
+  - SQLite graph schema/store for `reference_nodes`, `reference_object_refs`,
+    `reference_edges`, `reference_events`, and `reference_provenance`;
+  - `src/services/reference-graph-service.js` for relation validation,
+    idempotent edge creation, event/object operations, and bounded metadata;
+  - `src/services/note-reference-service.js` for Note link wrappers,
+    backlinks, and Note `reference_*` contract projections;
+  - `src/server-routes/reference-api-routes.js` for bounded HTTP routes;
+  - MCP wrapper tools: `notes_link_create`, `notes_links_list`,
+    `notes_backlinks_list`, `notes_link_delete`, `reference_object_types`,
+    `reference_get`, and `reference_summarize`.
+- Service-first cleanup:
+  - `src/server-routes/hermes-plugin-routes.js` is now a small compositor;
+  - app workspace routes, notes API routes, reference routes, HTTP utilities,
+    app workspace service, and imported body rendering were split into
+    separate files;
+  - `scripts/check-architecture.js` now enforces route/service line budgets and
+    reference-contract guardrails.
+- Docs updated:
+  - `docs/REFERENCE_GRAPH_ALIGNMENT_PLAN.md`;
+  - `docs/ARCHITECTURE.md`;
+  - `docs/DOCS_INDEX.md`;
+  - `docs/CROSS_PLUGIN_REFERENCES_DESIGN.md`;
+  - `docs/HERMES_PLUGIN_MCP.md`;
+  - `docs/HERMES_PLUGIN_HARNESS.md`;
+  - `docs/HOME_AI_PLATFORM_CONTRACT.md`;
+  - `docs/TEST_MATRIX.md`.
+- Validation status before commit:
+  - `npm test` passed: 54/54.
+  - `npm run check` passed.
+  - `npm run check:architecture` passed.
+  - `npm run privacy` passed.
+  - `python -m py_compile scripts\note_mcp_stdio.py` passed.
+  - `git diff --check` passed with only LF-to-CRLF warnings.
+  - `npm run visual:attachment-preview` passed after restarting 4181 on current
+    code.
+  - `npm run visual:embedded-back`, `npm run visual:no-horizontal-drag`, and
+    `npm run perf:ui` passed after restarting 4181 with
+    `NOTE_APP_WORKSPACE_ID=note:owner` for direct-browser harness mode.
+  - `npm run visual:theme-sync` passed.
+- Runtime note:
+  - The current local hidden Node process listens on `0.0.0.0:4181` from this
+    workspace. It was restarted for validation with direct harness fallback
+    workspace `note:owner`; Hermes embedded plugin launch still resolves the
+    workspace from launch token.
+- Privacy:
+  - No raw workspace key, registration key, launch token, cookie, attachment
+    bytes, full note body, screenshot, or long log was intentionally stored.

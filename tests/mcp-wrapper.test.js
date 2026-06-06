@@ -8,6 +8,22 @@ const { spawnSync } = require('node:child_process');
 const test = require('node:test');
 
 const wrapper = path.join(process.cwd(), 'scripts', 'note_mcp_stdio.py');
+const expectedToolNames = [
+  'notes_search',
+  'notes_recent',
+  'notes_get',
+  'notes_create',
+  'notes_update',
+  'notes_delete',
+  'notes_tags_list',
+  'notes_link_create',
+  'notes_links_list',
+  'notes_backlinks_list',
+  'notes_link_delete',
+  'reference_object_types',
+  'reference_get',
+  'reference_summarize'
+];
 
 test('MCP wrapper fails closed when workspace config is missing', () => {
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'note-mcp-missing-'));
@@ -31,15 +47,7 @@ test('MCP tools list uses local names without mcp_note prefix', () => {
 
   assert.equal(result.status, 0);
   const payload = JSON.parse(result.stdout);
-  assert.deepEqual(payload.tools, [
-    'notes_search',
-    'notes_recent',
-    'notes_get',
-    'notes_create',
-    'notes_update',
-    'notes_delete',
-    'notes_tags_list'
-  ]);
+  assert.deepEqual(payload.tools, expectedToolNames);
   assert.equal(payload.tools.some((name) => name.startsWith('mcp_note_')), false);
 });
 
@@ -65,11 +73,16 @@ test('MCP tools list exposes attachment schemas for create and update', () => {
   const tools = new Map(response.result.tools.map((tool) => [tool.name, tool]));
   const createAttachments = tools.get('notes_create').inputSchema.properties.attachments;
   const updateAttachments = tools.get('notes_update').inputSchema.properties.attachments;
+  const linkCreate = tools.get('notes_link_create').inputSchema;
+  const referenceGet = tools.get('reference_get').inputSchema;
 
   assert.equal(createAttachments.maxItems, 8);
   assert.equal(createAttachments.items.required.includes('name'), true);
   assert.equal(createAttachments.items.properties.data_base64.type, 'string');
   assert.equal(updateAttachments.items.additionalProperties, false);
+  assert.deepEqual(linkCreate.required, ['note_id', 'target_plugin_id', 'target_object_type', 'target_object_id', 'relation']);
+  assert.equal(linkCreate.properties.display_snapshot.additionalProperties, false);
+  assert.deepEqual(referenceGet.required, ['object_type', 'object_id']);
 });
 
 test('MCP initialize includes serverInfo for Hermes Agent SDK validation', () => {

@@ -55,6 +55,13 @@ notes_create
 notes_update
 notes_delete
 notes_tags_list
+notes_link_create
+notes_links_list
+notes_backlinks_list
+notes_link_delete
+reference_object_types
+reference_get
+reference_summarize
 ```
 
 Hermes Agent adds the final callable prefix:
@@ -67,6 +74,13 @@ mcp_note_notes_create
 mcp_note_notes_update
 mcp_note_notes_delete
 mcp_note_notes_tags_list
+mcp_note_notes_link_create
+mcp_note_notes_links_list
+mcp_note_notes_backlinks_list
+mcp_note_notes_link_delete
+mcp_note_reference_object_types
+mcp_note_reference_get
+mcp_note_reference_summarize
 ```
 
 The wrapper must not return `mcp_note_*` names, otherwise Hermes would create a double prefix.
@@ -74,6 +88,41 @@ The wrapper must not return `mcp_note_*` names, otherwise Hermes would create a 
 ## Output Boundary
 
 Search and recent tools return bounded summaries: id, title, short snippet, tags, timestamps, and attachment count. `notes_get` returns one note body only. Tools never return raw workspace keys, launch tokens, cookies, database paths, or an unbounded note library dump.
+
+## Reference Graph Tools
+
+Note exposes Home AI Reference / Memory Graph V1-compatible local wrappers:
+
+```text
+notes_link_create(note_id, target_plugin_id, target_object_type, target_object_id, relation, label?, display_snapshot?, event_key?, idempotency_key?)
+notes_links_list(note_id, relation?, target_plugin_id?, limit?)
+notes_backlinks_list(plugin_id, object_type, object_id, relation?, limit?)
+notes_link_delete(link_id)
+reference_object_types()
+reference_get(object_type, object_id)
+reference_summarize(object_type, object_id, purpose?)
+```
+
+Allowed relation values:
+
+```text
+mentions
+same_event
+evidence_for
+created_from
+context_for
+followup_to
+```
+
+`notes_link_create` creates a graph edge from a Note note to a target plugin
+object. It accepts an optional `idempotency_key`; repeated calls with the same
+key return the existing edge instead of creating duplicates.
+
+Reference outputs are bounded. They may include note id, title, short summary,
+tags, timestamps, attachment count, relation, and bounded display snapshots.
+They must not copy full Finance/Wardrobe/People/Email object details and must
+not return raw keys, launch tokens, cookies, DB paths, local file paths, or raw
+attachment bytes.
 
 ## Attachment Input Boundary
 

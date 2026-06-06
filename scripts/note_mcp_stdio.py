@@ -29,6 +29,16 @@ ATTACHMENT_SCHEMA = {
     "required": ["name"],
     "additionalProperties": False,
 }
+DISPLAY_SNAPSHOT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "subtitle": {"type": "string"},
+        "time": {"type": "string"},
+        "thumbnail_hint": {"type": "string"},
+    },
+    "additionalProperties": False,
+}
 
 TOOLS = [
     {
@@ -103,6 +113,99 @@ TOOLS = [
         "name": "notes_tags_list",
         "description": "List tags in the bound Note workspace.",
         "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "notes_link_create",
+        "description": "Create a bounded link from one Note note to another plugin object in the bound workspace.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "note_id": {"type": "string"},
+                "target_plugin_id": {"type": "string"},
+                "target_object_type": {"type": "string"},
+                "target_object_id": {"type": "string"},
+                "relation": {"type": "string", "enum": ["mentions", "same_event", "evidence_for", "created_from", "context_for", "followup_to"]},
+                "label": {"type": "string"},
+                "display_snapshot": DISPLAY_SNAPSHOT_SCHEMA,
+                "event_key": {"type": "string"},
+                "idempotency_key": {"type": "string"},
+            },
+            "required": ["note_id", "target_plugin_id", "target_object_type", "target_object_id", "relation"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "notes_links_list",
+        "description": "List bounded links for one Note note in the bound workspace.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "note_id": {"type": "string"},
+                "relation": {"type": "string"},
+                "target_plugin_id": {"type": "string"},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+            },
+            "required": ["note_id"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "notes_backlinks_list",
+        "description": "List Note notes linked to a target plugin object in the bound workspace.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "plugin_id": {"type": "string"},
+                "object_type": {"type": "string"},
+                "object_id": {"type": "string"},
+                "relation": {"type": "string"},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+            },
+            "required": ["plugin_id", "object_type", "object_id"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "notes_link_delete",
+        "description": "Delete one Note reference link in the bound workspace.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"link_id": {"type": "string"}},
+            "required": ["link_id"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "reference_object_types",
+        "description": "Return Note object types supported by the Home AI Reference contract.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "reference_get",
+        "description": "Return a bounded Note reference object by type and id.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "object_type": {"type": "string"},
+                "object_id": {"type": "string"},
+            },
+            "required": ["object_type", "object_id"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "reference_summarize",
+        "description": "Return a bounded Note reference summary by type and id.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "object_type": {"type": "string"},
+                "object_id": {"type": "string"},
+                "purpose": {"type": "string"},
+            },
+            "required": ["object_type", "object_id"],
+            "additionalProperties": False,
+        },
     },
 ]
 
@@ -247,6 +350,49 @@ def call_tool(name: str, arguments: dict[str, Any], context: dict[str, Any]) -> 
         return request_json(context, "DELETE", "/api/v1/notes/" + quote_required(arguments, "note_id"))
     if name == "notes_tags_list":
         return request_json(context, "GET", "/api/v1/notes/tags")
+    if name == "notes_link_create":
+        body = {
+            "note_id": arguments.get("note_id"),
+            "target_plugin_id": arguments.get("target_plugin_id"),
+            "target_object_type": arguments.get("target_object_type"),
+            "target_object_id": arguments.get("target_object_id"),
+            "relation": arguments.get("relation"),
+            "label": arguments.get("label") or "",
+            "display_snapshot": bounded_display_snapshot(arguments.get("display_snapshot")),
+            "event_key": arguments.get("event_key") or "",
+            "idempotency_key": arguments.get("idempotency_key") or "",
+        }
+        return request_json(context, "POST", "/api/v1/notes/links", body=body)
+    if name == "notes_links_list":
+        params = {"limit": bounded_limit(arguments.get("limit"))}
+        add_optional_param(params, "relation", arguments.get("relation"))
+        add_optional_param(params, "target_plugin_id", arguments.get("target_plugin_id"))
+        return request_json(context, "GET", f"/api/v1/notes/{quote_required(arguments, 'note_id')}/links", params=params)
+    if name == "notes_backlinks_list":
+        params = {
+            "plugin_id": required_arg(arguments, "plugin_id"),
+            "object_type": required_arg(arguments, "object_type"),
+            "object_id": required_arg(arguments, "object_id"),
+            "limit": bounded_limit(arguments.get("limit")),
+        }
+        add_optional_param(params, "relation", arguments.get("relation"))
+        return request_json(context, "GET", "/api/v1/notes/backlinks", params=params)
+    if name == "notes_link_delete":
+        return request_json(context, "DELETE", "/api/v1/notes/links/" + quote_required(arguments, "link_id"))
+    if name == "reference_object_types":
+        return request_json(context, "GET", "/api/v1/reference/object-types")
+    if name == "reference_get":
+        return request_json(context, "GET", "/api/v1/reference/get", params={
+            "object_type": required_arg(arguments, "object_type"),
+            "object_id": required_arg(arguments, "object_id"),
+        })
+    if name == "reference_summarize":
+        params = {
+            "object_type": required_arg(arguments, "object_type"),
+            "object_id": required_arg(arguments, "object_id"),
+        }
+        add_optional_param(params, "purpose", arguments.get("purpose"))
+        return request_json(context, "GET", "/api/v1/reference/summarize", params=params)
     raise ConfigError("note_mcp_tool_unknown")
 
 
@@ -279,10 +425,31 @@ def reject_forbidden_arguments(arguments: dict[str, Any]) -> None:
 
 
 def quote_required(arguments: dict[str, Any], key: str) -> str:
-    value = str(arguments.get(key) or "")
+    return urllib.parse.quote(required_arg(arguments, key), safe="")
+
+
+def required_arg(arguments: dict[str, Any], key: str) -> str:
+    value = str(arguments.get(key) or "").strip()
     if not value:
         raise ConfigError("note_mcp_required_argument_missing")
-    return urllib.parse.quote(value, safe="")
+    return value
+
+
+def add_optional_param(params: dict[str, Any], key: str, value: Any) -> None:
+    text = str(value or "").strip()
+    if text:
+        params[key] = text
+
+
+def bounded_display_snapshot(value: Any) -> dict[str, Any]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ConfigError("note_mcp_display_snapshot_invalid")
+    allowed = {"title", "subtitle", "time", "thumbnail_hint"}
+    if set(value.keys()) - allowed:
+        raise ConfigError("note_mcp_display_snapshot_invalid")
+    return {key: str(raw)[:240] for key, raw in value.items() if raw is not None}
 
 
 def bounded_limit(value: Any) -> int:

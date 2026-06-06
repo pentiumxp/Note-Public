@@ -19,6 +19,8 @@ git diff --check
 - SQLite persistence must keep every query scoped by `workspace_id`.
 - MCP wrapper must expose local tool names only; Hermes Agent owns the `mcp_note_` callable prefix.
 - MCP attachment saves must accept only bounded base64 payloads, reject model-provided paths/URLs/keys, and preserve only sanitized metadata.
+- Reference Graph writes must use service/store boundaries, stable object refs, allowed relation values, `workspace_id` filtering, and idempotency keys.
+- Main Hermes plugin route must stay a compositor; app, notes, and reference behavior belongs in route groups and services.
 
 ## Module Tests
 
@@ -32,6 +34,11 @@ git diff --check
 | MCP wrapper contract | `tests/mcp-wrapper.test.js` | H2 |
 | MCP attachment materialization | `tests/mcp-attachment-service.test.js` | H2 |
 | MCP note attachment routes | `tests/mcp-notes-attachment-routes.test.js` | H2 |
+| Reference graph store | `tests/reference-graph-store.test.js` | H2 |
+| Note reference service | `tests/note-reference-service.test.js` | H2 |
+| Reference API routes | `tests/reference-api-routes.test.js` | H2 |
+| App attachment file preview routes | `tests/attachment-file-preview-routes.test.js` | H2 |
+| Imported body and notebook display | `tests/body-rendering-and-notebooks.test.js` | H2 |
 | Embedded iframe contract | `tests/embedded-contract.test.js` | H2 |
 | Yinxiang `.notes` import parser | `tests/yinxiang-import.test.js` | H2 |
 | Architecture guardrail | `scripts/check-architecture.js` | H2 |
@@ -47,6 +54,9 @@ H1:
 - import/export that writes external state;
 - sync or backfill;
 - model-generated content entering saved notes;
+- cross-plugin Reference / Memory Graph orchestration;
+- production graph migrations or repairs;
+- new reference tools exposed through selected Gateway profiles;
 - multi-user permission or sharing;
 - production migration/deployment.
 
@@ -61,6 +71,9 @@ H2:
 - plugin manifest/provisioning/launch contracts.
 - workspace-local MCP access.
 - MCP attachment save contract.
+- Note-local Reference Graph store/service/API wrappers.
+- app attachment preview contract for MD, DOCX, and Hermes viewer shell routing.
+- imported note body rendering and notebook display repair.
 - same-origin iframe message contract.
 
 H3:

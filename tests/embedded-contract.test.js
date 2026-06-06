@@ -16,9 +16,10 @@ test('embedded app supports bounded Hermes postMessage contract', () => {
   }
   assert.match(app, /function handlePluginBack\(\)/);
   assert.match(app, /function emitNavigationState\(\)/);
-  assert.match(app, /const previewFullscreen = route\.surface === 'image_preview'/);
+  assert.match(app, /const previewFullscreen = route\.surface === 'image_preview' \|\| route\.surface === 'file_preview'/);
+  assert.match(app, /const previewKind = route\.surface === 'file_preview' \? 'file' : 'image'/);
   assert.match(app, /previewFullscreen,\s+fullscreenPreview: previewFullscreen/);
-  assert.match(app, /preview: previewFullscreen \? \{ kind: 'image', fullscreen: true \} : \{ fullscreen: false \}/);
+  assert.match(app, /preview: previewFullscreen \? \{ kind: previewKind, fullscreen: true \} : \{ fullscreen: false \}/);
   assert.match(app, /document\.addEventListener\('error', handlePreviewImageFallback, true\)/);
   assert.match(app, /function previewImageMarkup\(src, fallbackSrc = '', alt = '', options = \{\}\)/);
   assert.match(app, /data-fallback-src="\$\{escapeHtml\(fallbackSrc\)\}"/);

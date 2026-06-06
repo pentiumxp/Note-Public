@@ -1,5 +1,11 @@
 # Cross-Plugin References Design
 
+Status: superseded for implementation by `docs/REFERENCE_GRAPH_ALIGNMENT_PLAN.md`
+and the Home AI Reference / Memory Graph V1 contract. Keep this document only as
+historical product intent. New code must use `reference_object_refs` and
+`reference_edges` through the Note reference services instead of adding a
+standalone `note_links` table.
+
 ## 设计目标
 
 在 Hermes Mobile 插件体系中，Note 需要保存非结构化笔记，并为笔记和其他插件对象建立稳定引用。

@@ -9,9 +9,14 @@
 | Provider | File/external-system import/export boundary | `src/providers/file-note-provider.js` |
 | Projection | Workspace summaries, filters, task views | `src/view-models/workspace-view-model.js` |
 | Hermes plugin service | Manifest, provisioning, workspace key hash verification, launch token creation | `src/services/hermes-plugin-service.js` |
+| Document preview service | Bounded text extraction for Markdown/text and DOCX attachment previews | `src/services/document-preview-service.js` |
 | MCP attachment service | Bounded MCP attachment payload validation and materialization | `src/services/mcp-attachment-service.js` |
+| App workspace service | Embedded app workspace projection, imported body rendering delegation, attachment read/preview service calls | `src/services/app-workspace-service.js` |
+| Reference graph service | Home AI Reference / Memory Graph V1 validation, relations, idempotent edges | `src/services/reference-graph-service.js` |
+| Note reference service | Note-specific link/backlink wrappers and Note reference contract | `src/services/note-reference-service.js` |
 | SQLite store | Note-owned persistent database and workspace-isolated reads/writes | `src/stores/sqlite-note-store.js` |
 | Attachment SQLite store | Content-addressed attachment object/blob index | `src/stores/sqlite-attachment-store.js` |
+| Reference graph SQLite store | Workspace-scoped object refs, edges, events, provenance | `src/stores/sqlite-reference-graph-store.js` |
 | Routes | HTTP glue for plugin and notes API | `src/server-routes/hermes-plugin-routes.js` |
 | MCP wrapper | Workspace-bound stdio bridge for Hermes Agent | `scripts/note_mcp_stdio.py` |
 | Importer | Yinxiang `.notes` notebook import into Note SQLite | `scripts/import-yinxiang-notes.js` |
@@ -66,7 +71,11 @@ Note may link a note to those objects, but must not copy their full data or writ
 | Workspace view model | filtered lists, counters, task summaries | persistence, note mutation | `tests/workspace-view-model.test.js` |
 | Hermes plugin service | registration key validation, workspace id normalization, launch token creation | SQL persistence, route parsing, UI | `tests/hermes-plugin-service.test.js` |
 | MCP attachment service | base64 payload limits, file materialization, attachment-store indexing | HTTP auth, note mutation, model prompts | `tests/mcp-attachment-service.test.js` |
+| Document preview service | bounded text extraction for in-app viewer shells | raw file serving, workspace auth, UI shell rendering | `tests/attachment-file-preview-routes.test.js` |
 | SQLite note store | `workspace_id` filtered note/workspace persistence | auth decisions, request parsing | `tests/sqlite-note-store.test.js` |
+| Reference graph service | allowed relation vocabulary, idempotency, bounded metadata | route parsing, plugin object ownership | `tests/note-reference-service.test.js` |
+| Reference graph store | workspace-scoped graph persistence and indexes | business relation validation | `tests/reference-graph-store.test.js` |
+| Reference API routes | bounded HTTP DTOs for Note link wrappers and Note reference contract | graph validation, note lifecycle | `tests/reference-api-routes.test.js` |
 | MCP wrapper | workspace-local config/key loading, local tool names, bounded API calls | workspace selection by model args, raw key output | `tests/mcp-wrapper.test.js` |
 
 ## Data Model
@@ -100,7 +109,11 @@ launch_tokens(token, workspace_id, expires_at, created_at)
 notes(id, workspace_id, title, body, notebook_id, tags_json, tasks_json, shortcut, reminder_at, status, created_at, updated_at, deleted_at)
 notebooks(id, workspace_id, name, source, created_at, updated_at)
 attachments(id, workspace_id, note_id, name, kind, size, metadata_json, created_at)
-note_links(id, workspace_id, note_id, target_plugin_id, target_object_type, target_object_id, relation, label, display_snapshot_json, created_by, created_at, deleted_at)
+reference_nodes(node_id, workspace_id, node_type, title, summary, privacy_class, metadata_json, created_at, updated_at)
+reference_object_refs(ref_id, workspace_id, plugin_id, object_type, object_id, display_title, display_subtitle, display_time, thumbnail_hint, snapshot_time, permission_scope_json, created_at, updated_at)
+reference_edges(edge_id, workspace_id, source_kind, source_id, target_kind, target_id, relation_type, event_key, confidence, created_by, created_at, metadata_json, provenance_id, idempotency_key, deleted_at)
+reference_events(event_id, workspace_id, event_key, title, time_start, time_end, place_hint, summary, metadata_json, created_at, updated_at)
+reference_provenance(provenance_id, workspace_id, source_type, source_ref, run_id, message_id, tool_call_id, idempotency_key, summary, metadata_json, created_at)
 ```
 
 Required indexes:
@@ -110,12 +123,15 @@ create index idx_notes_workspace_updated on notes(workspace_id, updated_at desc)
 create index idx_notes_workspace_deleted on notes(workspace_id, deleted_at);
 create index idx_notebooks_workspace_name on notebooks(workspace_id, name);
 create index idx_attachments_workspace_note on attachments(workspace_id, note_id);
-create index idx_note_links_note on note_links(workspace_id, note_id, deleted_at);
-create index idx_note_links_target on note_links(workspace_id, target_plugin_id, target_object_type, target_object_id, deleted_at);
-create index idx_note_links_relation on note_links(workspace_id, relation, deleted_at);
+create index idx_reference_object_refs_identity on reference_object_refs(workspace_id, plugin_id, object_type, object_id);
+create index idx_reference_edges_source on reference_edges(workspace_id, source_kind, source_id, deleted_at);
+create index idx_reference_edges_target on reference_edges(workspace_id, target_kind, target_id, deleted_at);
+create unique index idx_reference_edges_idempotency on reference_edges(workspace_id, idempotency_key) where idempotency_key is not null and idempotency_key <> '';
 ```
 
-`note_links` is planned by `docs/CROSS_PLUGIN_REFERENCES_DESIGN.md`; implementation is pending.
+Reference Graph alignment is documented in `docs/REFERENCE_GRAPH_ALIGNMENT_PLAN.md`.
+Older `note_links` planning language is superseded by the Home AI Reference /
+Memory Graph V1 contract.
 
 ## API and Messages
 
@@ -131,12 +147,22 @@ The local plugin server exposes bounded plugin and notes routes:
 - `PATCH /api/v1/notes/:id`
 - `DELETE /api/v1/notes/:id`
 - `GET /api/v1/notes/tags`
+- `POST /api/v1/notes/links`
+- `GET /api/v1/notes/:id/links`
+- `GET /api/v1/notes/backlinks`
+- `DELETE /api/v1/notes/links/:id`
+- `GET /api/v1/reference/object-types`
+- `GET /api/v1/reference/get`
+- `GET /api/v1/reference/summarize`
 
 For the local embedded app surface, the server also exposes a same-origin app
 workspace view:
 
 - `GET /api/v1/app/workspace`
 - `GET /api/v1/app/notes/:id`
+- `GET /api/v1/app/attachments/:id`
+- `GET /api/v1/app/attachments/:id/thumbnail`
+- `GET /api/v1/app/attachments/:id/preview`
 
 In embedded production, these routes resolve the workspace from the verified
 launch token and fail closed when no launch token is present. Development-only
@@ -144,6 +170,24 @@ standalone runs may still use a configured fallback workspace. The app routes
 must not expose a raw workspace key to browser JavaScript, and they must not
 fall back to `note:owner` when Hermes launches a non-owner workspace. Hermes
 MCP and plugin routes still use the workspace key contract above.
+
+Attachment preview mirrors the Hermes Mobile viewer module. Note includes
+`public/file-viewer.html`, `public/markdown-viewer.html`,
+`public/pdf-viewer.html`, `public/markdown-renderer-client.js`, and the local
+PDF.js assets under `public/vendor/pdfjs/`. The Note app opens non-image
+attachments in an in-app iframe viewer:
+
+- PDF files use `pdf-viewer.html` and render from same-origin fetched bytes
+  through PDF.js `Uint8Array` input, not through the browser's native PDF
+  iframe.
+- Markdown files use `markdown-viewer.html` and render through the copied
+  Hermes Markdown renderer.
+- DOCX files use `file-viewer.html`; the app attachment preview endpoint
+  returns bounded JSON text extracted by `src/services/document-preview-service.js`.
+
+The preview endpoint never returns storage keys, database paths, raw launch
+tokens, or attachment bytes. It is workspace-bound through the same app launch
+verification as the attachment download route.
 
 Routes should expose bounded DTOs and use stable error codes:
 
@@ -167,7 +211,7 @@ There are no async queues in the local prototype. Any future import/export, sync
 
 ## External Systems
 
-Initial external boundary is local file-system import/export plus MCP-provided bounded attachment payloads. Yinxiang `.notes` files are imported per notebook: each exported file name becomes a Note notebook in the target workspace, each note keeps its original ENML-like body, and resource payloads are materialized under Note-owned ignored `data/attachments/`. MCP attachments must arrive as bounded base64 payloads; model-provided paths, URLs, keys, launch tokens, and storage keys are rejected. The database stores bounded attachment metadata plus an internal `storageKey`, never a user-supplied absolute path. The runtime also mirrors attachment blob/object records into `data/attachment.sqlite3` when the attachment store is configured. Raw export files live under ignored `imports/` and are never committed. Cloud drives, Obsidian vaults, Git remotes, model services, and mobile clients are out of scope until documented.
+Initial external boundary is local file-system import/export plus MCP-provided bounded attachment payloads. Yinxiang `.notes` files are imported per notebook: each exported file name becomes a Note notebook in the target workspace, each note keeps its original ENML-like body, and resource payloads are materialized under the Note-owned attachment root. MCP attachments must arrive as bounded base64 payloads; model-provided paths, URLs, keys, launch tokens, and storage keys are rejected. The database stores bounded attachment metadata plus an internal `storageKey`, never a user-supplied absolute path. Runtime app attachment routes resolve `storageKey` only under the configured attachment root and reject path escape attempts. The runtime also mirrors attachment blob/object records into `data/attachment.sqlite3` when the attachment store is configured. Raw export files live under ignored `imports/` and are never committed. Cloud drives, Obsidian vaults, Git remotes, model services, and mobile clients are out of scope until documented.
 
 ## Reference-App Mapping
 
