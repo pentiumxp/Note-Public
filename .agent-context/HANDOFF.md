@@ -371,6 +371,94 @@ Build a notes product that basically recreates China edition Yinxiang Biji/Evern
 
 ## Read First Next Time
 
+## Latest MD/File Preview Browser Verification - 2026-06-04
+
+- User report:
+  - Markdown attachment preview still showed the Hermes-style error page instead of rendered HTML.
+  - User explicitly requested browser verification.
+- Root cause:
+  - Note was opening viewer iframes with root-absolute paths such as `/markdown-viewer.html`.
+  - Under Hermes Mobile same-origin plugin proxy, that can resolve to Hermes Mobile's root viewer instead of Note's proxied viewer.
+  - Hermes root `markdown-viewer.html` does not have Note's attachment preview route context, so it shows the "No internal preview route" style error.
+- Changes made in this Note workspace:
+  - `public/app.js`
+    - `attachmentViewerUrl()` now uses relative viewer shell paths: `pdf-viewer.html`, `markdown-viewer.html`, and `file-viewer.html`.
+    - The viewer query includes the Note attachment `preview` URL so MD/Word/text preview shells can fetch bounded converted text through Note.
+  - `public/markdown-viewer.html` and `public/file-viewer.html`
+    - Accept explicit `preview` query parameters.
+    - Preserve Note proxy prefixes when mapping attachment URLs to `/preview`.
+  - `public/styles.css`
+    - File preview panels now use a constrained block layout; iframes are `display:block`, `max-width:100%`, and `min-width:0`.
+    - This fixed PDF iframe overflow on a 390px mobile viewport.
+  - `public/index.html`
+    - Static resource version advanced to `20260604-md-preview-proxy-v2`.
+  - `scripts/note-server.js`
+    - Default production port changed to `4181`.
+  - Visual harness scripts
+    - Default direct URL changed from stale `4173` to `4181`.
+    - `scripts/visual-attachment-preview-harness.js` can now read a workspace-local `.hermes-note` config/key and exchange it for a short launch URL internally. It does not print raw keys or launch tokens.
+    - Attachment preview harness assertions now accept relative viewer paths, which is required for Hermes proxy correctness.
+  - `tests/attachment-file-preview-routes.test.js`
+    - Covers explicit `preview` parameter handling and relative viewer-shell paths.
+- Browser verification:
+  - Android Chrome DevTools was reachable over ADB, but no active Hermes Note iframe was open; the only matched plugin iframe was Wardrobe.
+  - A Playwright browser run used the real `owner` workspace launch flow against `http://127.0.0.1:4181`.
+  - Real launch page loaded 120 visible note rows and image thumbnails from `/api/v1/app/attachments/:id/thumbnail`, all returning 200 in the sampled run.
+  - Clicking the real Markdown attachment opened `.markdown-preview-frame` with relative `markdown-viewer.html`.
+  - The iframe rendered HTML with `hasPreview=true`, `hasError=false`, 4 headings, and 8 paragraph/list blocks in the sampled run.
+- Validation:
+  - `npm test` passed: 48/48.
+  - `npm run check` passed.
+  - `npm run visual:attachment-preview` passed with `rightThumbs=82`, `imageChipUsesThumbnail=true`, `imageChipHasFallback=true`, `brokenImageChips=0`, `previewInputs=0`, and `previewHeadVisible=false`.
+  - `npm run check:architecture` passed.
+  - `npm run privacy` passed.
+  - `git diff --check` passed with only existing LF-to-CRLF warnings.
+- Status:
+  - The running Note service is still process `node scripts/note-server.js` listening on `0.0.0.0:4181`.
+  - Static files are served with `Cache-Control: no-store`; the new query string is also present to avoid PWA/proxy stale assets.
+  - This workspace remains dirty with substantial prior Note work; do not blindly commit all dirty files or revert unrelated changes.
+- Privacy:
+  - No raw workspace key, registration key, launch token, cookie, attachment bytes, screenshot, full note body, or long log was intentionally stored in this handoff.
+
+## Latest Hermes Proxy Preview Not Found Fix - 2026-06-04
+
+- User evidence:
+  - Screenshot showed the Markdown overlay title `2026-06-04_穿着入库回执.md`, but the viewer body only displayed `Not found`.
+- Root cause:
+  - The previous fix made the viewer shell path relative, so the Note viewer opened correctly.
+  - Inside the viewer, the explicit Note preview URL was still `/api/v1/app/attachments/.../preview`.
+  - Under Hermes same-origin proxy, that root path resolves to Hermes Mobile root, not to `/api/hermes-plugins/note/proxy/api/v1/app/...`, causing the preview fetch to return `Not found`.
+- Changes made:
+  - `public/markdown-viewer.html`
+    - Internal `fixed-viewport.js` and `markdown-renderer-client.js` script references are now relative.
+    - `previewUrlFor()` now rewrites Note app API paths into the current Note proxy prefix when loaded under `/api/hermes-plugins/note/proxy/`.
+  - `public/file-viewer.html`
+    - Same relative script reference fix.
+    - Same proxy-prefix rewrite for preview, original, and download paths.
+  - `public/pdf-viewer.html`
+    - Internal fixed viewport and PDF.js import/worker references are now relative.
+    - PDF download fetch paths now use the same Note proxy-prefix rewrite for `/api/v1/app/...`.
+  - `public/app.js`
+    - `attachmentViewerUrl()` now adds `viewer_v=20260604-proxy-preview-v3` to bust stale mobile/PWA viewer iframe caches.
+  - `public/index.html`
+    - Static resource query string advanced to `20260604-proxy-preview-v3`.
+  - `scripts/visual-attachment-preview-harness.js`
+    - Added a browser-level Hermes proxy simulation: serves `markdown-viewer.html` under `/api/hermes-plugins/note/proxy/`, deliberately returns 404 for root `/api/v1/app/...`, and asserts the viewer fetches the proxied Note preview route.
+  - `tests/attachment-file-preview-routes.test.js`
+    - Static coverage for relative viewer assets, proxy-prefix helper, and `viewer_v`.
+- Validation:
+  - `npm test` passed: 48/48.
+  - `npm run check` passed.
+  - `npm run visual:attachment-preview` passed and reported `proxyMarkdownPreview=true`.
+  - `npm run check:architecture` passed.
+  - `npm run privacy` passed.
+  - `git diff --check` passed with only LF-to-CRLF warnings.
+  - Note service remains listening on `0.0.0.0:4181`.
+- Status:
+  - Browser/PWA may need the Note plugin page reopened so the iframe gets `app.js?v=20260604-proxy-preview-v3` and viewer URLs include `viewer_v=20260604-proxy-preview-v3`.
+- Privacy:
+  - No raw workspace key, registration key, launch token, cookie, attachment bytes, full note body, screenshot, or long log was intentionally stored in this handoff.
+
 1. `.agent-context/PROJECT_CONTEXT.md`
 2. `.agent-context/HANDOFF.md`
 3. `docs/DOCS_INDEX.md`
@@ -383,3 +471,33 @@ Build a notes product that basically recreates China edition Yinxiang Biji/Evern
 10. `docs/HERMES_PLUGIN_MCP.md`
 11. `docs/HERMES_PLUGIN_HARNESS.md`
 12. `docs/TEST_MATRIX.md`
+
+## 2026-06-06 Home AI Platform Contract Pointer
+
+- Added `docs/HOME_AI_PLATFORM_CONTRACT.md`.
+- Contract version: `20260606-v1`.
+- Scope: Note is treated as a standard inserted Home AI plugin and the planned
+  first local home for non-structured memory plus cross-plugin links.
+- This was a documentation-only update. No Note code, local service, Mac
+  production files, Gateway workers, note data, attachments, launch tokens, or
+  credentials were changed.
+- Next steps:
+  - implement Note link tools and Reference / Memory Graph V1 harness coverage;
+  - keep exact Mac production source/data roots current after future Note
+    deploys;
+  - add Appium/iOS Simulator evidence for embedded previews, gesture behavior,
+    and installed-PWA shell differences.
+
+## 2026-06-06 Home AI Platform Contract Checker Closure
+
+- Home AI main workspace added and ran:
+  `node scripts\plugin-workspace-platform-contract-check.js --plugin note --json`.
+- Mac read-only platform probe passed through `homeai-mac`:
+  - source path `/Users/hermes-host/HermesMobile/plugins/note` exists;
+  - data root `/Users/hermes-host/HermesMobile/plugins/note/data` exists;
+  - launchd `com.hermesmobile.plugin.note` is loaded;
+  - manifest `http://127.0.0.1:4181/api/v1/hermes/plugin/manifest` returned
+    HTTP 200.
+- No Note code, service, production data, Gateway worker, note content,
+  attachment bytes, launch token, or credential material was changed by this
+  checker closure.
