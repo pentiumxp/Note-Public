@@ -41,6 +41,7 @@ behavior, or cross-plugin reference behavior:
 | `credential_locations` | Workspace-local ignored `.hermes-note` config/key files only by reference. Do not record raw keys or launch tokens here. |
 | `reference_contract_status` | Note-local V1 slice implemented: SQLite object refs/edges/events/provenance, Note link wrappers, and Note `reference_*` contract. Cross-plugin orchestration remains owned by Hermes Mobile. |
 | `mobile_visual_harness_status` | Multiple local Playwright visual harnesses exist; Home AI Appium/iOS Simulator evidence is required for embedded shell, gesture, preview, safe-area, or PWA differences. |
+| `ios_live_debug_available` | `yes`; use Home AI `npm run ios:pwa:debug` for interactive embedded iOS PWA reproduction, with one Simulator/live-debug-port/WDA-port/MJPEG-port lane per concurrent plugin debug session. |
 
 ## Required Local Validation
 
