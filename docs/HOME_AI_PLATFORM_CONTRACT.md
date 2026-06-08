@@ -37,11 +37,13 @@ behavior, or cross-plugin reference behavior:
 | `manifest_url` | `http://127.0.0.1:4181/api/v1/hermes/plugin/manifest` |
 | `mcp_command` | `python scripts/note_mcp_stdio.py` or the configured Gateway wrapper; verify before production changes |
 | `mcp_schema_endpoint` | MCP `tools/list` through the stdio wrapper and plugin manifest through HTTP |
+| `dev_runtime_prerequisites` | Mac DEV must expose Python through `/Users/xuxin/Developer/HomeAIDev/bin/python` and `/Users/hermes-dev/HermesMobileDev/runtime/python-current`; run `python -m py_compile scripts/note_mcp_stdio.py` before classifying Note MCP failures as wrapper/protocol failures. |
 | `deploy_command` | Use the Home AI Mac access runbook; verify the current Note deploy script/path before production sync. |
 | `credential_locations` | Workspace-local ignored `.hermes-note` config/key files only by reference. Do not record raw keys or launch tokens here. |
 | `reference_contract_status` | Note-local V1 slice implemented: SQLite object refs/edges/events/provenance, Note link wrappers, and Note `reference_*` contract. Cross-plugin orchestration remains owned by Hermes Mobile. |
 | `mobile_visual_harness_status` | Multiple local Playwright visual harnesses exist; Home AI Appium/iOS Simulator evidence is required for embedded shell, gesture, preview, safe-area, or PWA differences. |
 | `ios_live_debug_available` | `yes`; use Home AI `npm run ios:pwa:debug` for interactive embedded iOS PWA reproduction, with one Simulator/live-debug-port/WDA-port/MJPEG-port lane per concurrent plugin debug session. |
+| `ios_visual_harness_command` | `cd /Users/hermes-dev/HermesMobileDev/app && npm run ios:pwa:visual -- --scenario embedded-plugin-shell --plugin-id note --debug-url http://127.0.0.1:19073/` |
 
 ## Required Local Validation
 
