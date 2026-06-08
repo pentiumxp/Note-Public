@@ -40,6 +40,7 @@ git diff --check
 | App attachment file preview routes | `tests/attachment-file-preview-routes.test.js` | H2 |
 | Imported body and notebook display | `tests/body-rendering-and-notebooks.test.js` | H2 |
 | Embedded iframe contract | `tests/embedded-contract.test.js` | H2 |
+| Embedded create sheet right-swipe dismiss | `scripts/create-sheet-gesture-harness.js` | H2 |
 | Yinxiang `.notes` import parser | `tests/yinxiang-import.test.js` | H2 |
 | Architecture guardrail | `scripts/check-architecture.js` | H2 |
 | Mobile navigation/create menu DOM | future DOM test | H2 |
@@ -75,6 +76,7 @@ H2:
 - app attachment preview contract for MD, DOCX, and Hermes viewer shell routing.
 - imported note body rendering and notebook display repair.
 - same-origin iframe message contract.
+- embedded create sheet gesture dismissal.
 
 H3:
 

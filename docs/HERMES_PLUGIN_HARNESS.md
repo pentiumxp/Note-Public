@@ -9,6 +9,7 @@ npm run check:architecture
 npm run visual:swipe-delete
 npm run visual:embedded-back
 npm run visual:no-horizontal-drag
+npm run visual:create-sheet-gesture
 npm run visual:attachment-preview
 npm run perf:ui
 node scripts/privacy-scan.js
@@ -42,6 +43,7 @@ git diff --check
 | Swipe delete is visually hidden before swipe, reachable only after short swipe, and the embedded list shows dense rows after scrolling | `scripts/visual-swipe-delete-harness.js` |
 | Hermes host back is handled inside Note before the host exits the plugin | `scripts/embedded-back-harness.js` |
 | Embedded mobile page does not allow page-level horizontal dragging in home or editor states | `scripts/no-horizontal-drag-harness.js` |
+| Embedded create sheet right-swipe closes the Note sheet locally instead of asking the host to exit the plugin | `scripts/create-sheet-gesture-harness.js` |
 | Attachment thumbnails use typed icons, image chips open image preview, and MD/Word/PDF file chips open copied Hermes in-app viewer shells | `tests/attachment-file-preview-routes.test.js`, `scripts/visual-attachment-preview-harness.js` |
 | Mobile list performance stays bounded by windowed initial rows and avoids full-list rerender on note open | `scripts/perf-note-ui-harness.js` |
 | Privacy scan excludes raw secrets and tokens | `scripts/privacy-scan.js` |

@@ -56,7 +56,6 @@
 }
 
 :root[data-theme="dark"] .mobile-home-head,
-:root[data-theme="dark"] .quick-create-strip,
 :root[data-theme="dark"] .note-list,
 :root[data-theme="dark"] .note-row,
 :root[data-theme="dark"] .tag-pill,
@@ -66,7 +65,6 @@
 :root[data-theme="dark"] .section-head button,
 :root[data-theme="dark"] .back-button,
 :root[data-theme="dark"] .home-search,
-:root[data-theme="dark"] .quick-create-strip button,
 :root[data-theme="dark"] .attachment-row,
 :root[data-theme="dark"] .task-row,
 :root[data-theme="dark"] .sheet-panel,
@@ -387,32 +385,6 @@ button {
   color: var(--muted);
 }
 
-.quick-create-strip {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(112px, 1fr));
-  gap: 10px;
-  padding: 14px 18px;
-  overflow-x: auto;
-  border-bottom: 1px solid var(--line);
-  background: #fbfcfa;
-}
-
-.quick-create-strip button {
-  min-height: 94px;
-  min-width: 112px;
-  display: grid;
-  grid-template-rows: 34px auto auto;
-  justify-items: start;
-  gap: 4px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: white;
-  color: var(--ink);
-  padding: 12px;
-  text-align: left;
-}
-
-.quick-create-strip small,
 .sheet-grid small {
   color: var(--muted);
   font-size: 12px;
@@ -453,12 +425,12 @@ button {
 }
 
 .list-toolbar {
-  min-height: 72px;
+  min-height: 54px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
-  padding: 16px 18px;
+  padding: 8px 18px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -1316,6 +1288,8 @@ h2 {
   position: fixed;
   inset: 0;
   z-index: 40;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .sheet-backdrop {
@@ -1336,6 +1310,7 @@ h2 {
   border-radius: 14px;
   background: var(--surface);
   box-shadow: var(--shadow);
+  touch-action: pan-y;
 }
 
 .sheet-handle {
@@ -1434,33 +1409,8 @@ h2 {
     padding: calc(14px + env(safe-area-inset-top)) 16px 12px;
   }
 
-  .quick-create-strip {
-    grid-template-columns: repeat(4, 122px);
-    padding: 12px 16px;
-  }
-
-html[data-embed="hermes"] .quick-create-strip {
-    grid-template-columns: repeat(4, 110px);
-    gap: 8px;
-    padding: 9px 16px;
-  }
-
-  html[data-embed="hermes"] .quick-create-strip button {
-    min-height: 76px;
-    min-width: 110px;
-    grid-template-rows: 28px auto auto;
-    gap: 3px;
-    padding: 9px;
-  }
-
-  html[data-embed="hermes"] .quick-icon {
-    width: 28px;
-    height: 28px;
-    border-radius: 7px;
-  }
-
   .list-toolbar {
-    padding: 14px 16px;
+    padding: 8px 16px;
   }
 
   html[data-embed="hermes"] .list-toolbar {

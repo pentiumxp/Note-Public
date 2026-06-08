@@ -571,3 +571,53 @@ Build a notes product that basically recreates China edition Yinxiang Biji/Evern
 - Privacy:
   - No raw workspace key, registration key, launch token, cookie, attachment
     bytes, full note body, screenshot, or long log was intentionally stored.
+
+## 2026-06-08 Home Toolbar And Create Sheet Gesture Deploy
+
+- UI cleanup:
+  - Removed the home-page quick-create strip, including Super Note, Photo,
+    Scan, and Attachment large entries.
+  - Removed the list title/subtitle prompt from the home list toolbar.
+  - Kept the sort dropdown as the left-side toolbar control.
+  - Kept create modes in the bottom plus sheet.
+- Gesture behavior:
+  - Added create-sheet right-swipe dismissal in `public/app.js`.
+  - When the plus sheet is open, a right swipe closes the Note sheet locally,
+    emits Note navigation back to `home`, and does not ask Hermes host to exit
+    the plugin.
+  - Existing `hermes.plugin.back` handling still closes Note internals first.
+- Harness/docs:
+  - Added `scripts/create-sheet-gesture-harness.js`.
+  - Added `npm run visual:create-sheet-gesture`.
+  - Updated `docs/HERMES_PLUGIN_HARNESS.md` and `docs/TEST_MATRIX.md`.
+- Local validation:
+  - `npm test` passed: 55/55.
+  - `npm run check` passed.
+  - `npm run check:architecture` passed.
+  - `npm run privacy` passed.
+  - `python -m py_compile scripts\note_mcp_stdio.py` passed.
+  - `npm run visual:create-sheet-gesture` passed with
+    `beforeSurface=create_sheet`, `afterSurface=home`,
+    `sheetOpenAfterSwipe=false`, and `hostBackResults=0`.
+  - `npm run visual:embedded-back` and `npm run visual:no-horizontal-drag`
+    passed.
+  - `git diff --check` passed with only LF-to-CRLF warnings.
+  - UTF-8 BOM checks passed for changed text files.
+- Mac production deployment:
+  - Synced the current local source surface to
+    `/Users/hermes-host/HermesMobile/plugins/note` after finding the Mac source
+    was behind local `package.json`/`src` expectations.
+  - Backups:
+    - `/Users/hermes-host/HermesMobile/plugins/note/backups/ui-gesture-20260608-175248`
+    - `/Users/hermes-host/HermesMobile/plugins/note/backups/source-sync-20260608-175446/source-before-sync.tar`
+  - Restarted `system/com.hermesmobile.plugin.note`.
+  - Mac production validation:
+    - `npm run check` passed using the pinned Home AI Node runtime.
+    - `npm test` passed: 55/55, using a temporary `/tmp` test-only
+      `python` wrapper to call `/usr/bin/python3` for MCP wrapper tests.
+    - `http://127.0.0.1:4181/api/v1/hermes/plugin/manifest` returned HTTP
+      200 after restart.
+- Privacy:
+  - No raw workspace key, registration key, launch token, cookie, attachment
+    bytes, full note body, screenshot, password, or long log was intentionally
+    stored.

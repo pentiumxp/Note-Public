@@ -15,6 +15,8 @@ let selectedNoteId = state.notes[0]?.id || null;
 let selectedFilter = { type: 'all' };
 const SWIPE_REVEAL_WIDTH = 104;
 const SWIPE_DELETE_WIDTH = 184;
+const SHEET_DISMISS_SWIPE_X = 58;
+const SHEET_DISMISS_SWIPE_RATIO = 1.15;
 const NOTE_LIST_INITIAL_LIMIT = 120;
 const NOTE_LIST_BATCH_SIZE = 80;
 const NOTE_LIST_SCROLL_THRESHOLD = 900;
@@ -54,8 +56,6 @@ const elements = {
   countTasks: document.querySelector('#count-tasks'),
   countAttachments: document.querySelector('#count-attachments'),
   countTrash: document.querySelector('#count-trash'),
-  listTitle: document.querySelector('#list-title'),
-  listSubtitle: document.querySelector('#list-subtitle'),
   sortSelect: document.querySelector('#sort-select'),
   editorPanel: document.querySelector('#editor-panel'),
   closeEditorButton: document.querySelector('#close-editor-button'),
@@ -72,6 +72,7 @@ function wireEvents() {
   elements.newNoteButton.addEventListener('click', openCreateSheet);
   elements.mobileCreateButton.addEventListener('click', openCreateSheet);
   elements.sheetBackdrop.addEventListener('click', closeCreateSheet);
+  wireCreateSheetDismissGesture();
   elements.closeEditorButton.addEventListener('click', closeEditor);
 
   document.querySelectorAll('[data-create-kind]').forEach((button) => {
@@ -439,6 +440,91 @@ function closeCreateSheet() {
   emitNavigationState();
 }
 
+function wireCreateSheetDismissGesture() {
+  let startX = 0;
+  let startY = 0;
+  let tracking = false;
+  let pointerId = null;
+
+  const shouldIgnoreGestureStart = (target) => Boolean(target.closest('[data-create-kind], input, textarea, select, a'));
+  const shouldDismiss = (clientX, clientY) => {
+    const dx = clientX - startX;
+    const dy = clientY - startY;
+    return dx >= SHEET_DISMISS_SWIPE_X && Math.abs(dx) > Math.abs(dy) * SHEET_DISMISS_SWIPE_RATIO;
+  };
+  const stopSheetGesture = (event) => {
+    event.preventDefault?.();
+    event.stopPropagation?.();
+  };
+  const dismissFromGesture = (event) => {
+    if (elements.createSheet.hidden) return false;
+    closeCreateSheet();
+    stopSheetGesture(event);
+    return true;
+  };
+
+  elements.createSheet.addEventListener('pointerdown', (event) => {
+    if (elements.createSheet.hidden || shouldIgnoreGestureStart(event.target)) return;
+    if (event.button !== 0 && event.pointerType === 'mouse') return;
+    startX = event.clientX;
+    startY = event.clientY;
+    tracking = true;
+    pointerId = event.pointerId;
+    elements.createSheet.setPointerCapture?.(event.pointerId);
+  }, true);
+
+  elements.createSheet.addEventListener('pointermove', (event) => {
+    if (!tracking || pointerId !== event.pointerId) return;
+    if (shouldDismiss(event.clientX, event.clientY)) {
+      stopSheetGesture(event);
+    }
+  }, true);
+
+  elements.createSheet.addEventListener('pointerup', (event) => {
+    if (!tracking || pointerId !== event.pointerId) return;
+    tracking = false;
+    pointerId = null;
+    if (shouldDismiss(event.clientX, event.clientY)) {
+      dismissFromGesture(event);
+    }
+  }, true);
+
+  elements.createSheet.addEventListener('pointercancel', () => {
+    tracking = false;
+    pointerId = null;
+  }, true);
+
+  elements.createSheet.addEventListener('touchstart', (event) => {
+    const touch = event.touches[0];
+    if (!touch || elements.createSheet.hidden || shouldIgnoreGestureStart(event.target)) return;
+    startX = touch.clientX;
+    startY = touch.clientY;
+    tracking = true;
+  }, { capture: true, passive: true });
+
+  elements.createSheet.addEventListener('touchmove', (event) => {
+    if (!tracking) return;
+    const touch = event.touches[0];
+    if (!touch) return;
+    if (shouldDismiss(touch.clientX, touch.clientY)) {
+      stopSheetGesture(event);
+    }
+  }, { capture: true, passive: false });
+
+  elements.createSheet.addEventListener('touchend', (event) => {
+    if (!tracking) return;
+    tracking = false;
+    const touch = event.changedTouches[0];
+    if (touch && shouldDismiss(touch.clientX, touch.clientY)) {
+      dismissFromGesture(event);
+    }
+  }, { capture: true, passive: false });
+
+  elements.createSheet.addEventListener('touchcancel', () => {
+    tracking = false;
+  }, true);
+}
+
 function openEditor() {
   elements.editorPanel.classList.add('is-open');
   emitNavigationState();
@@ -601,8 +687,6 @@ function renderTags() {
 function renderNoteList() {
   const allNotes = filteredNotes();
   const notes = allNotes.slice(0, renderedNoteLimit);
-  elements.listTitle.textContent = titleForFilter();
-  elements.listSubtitle.textContent = selectedFilter.type === 'all' ? '最近更新' : '筛选结果';
   elements.noteList.innerHTML = '';
   if (!allNotes.length) {
     elements.noteList.innerHTML = '<div class="empty-state">没有匹配的笔记</div>';
