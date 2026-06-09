@@ -1,5 +1,58 @@
 # Handoff
 
+## Latest Mac Production Workspace Notebook Schema Fix - 2026-06-09
+
+- User reported WuPing workspace Save to Note showed:
+  `保存到 Note 失败：ERR_SQLITE_ERROR`.
+- Root cause:
+  - WuPing `.hermes-note` binding and production `plugin_workspaces` row were
+    active and complete;
+  - direct WuPing Note API create reproduced `500 ERR_SQLITE_ERROR`;
+  - direct Note SQLite/service probe revealed
+    `UNIQUE constraint failed: notebooks.id`;
+  - `notebooks.id` was a global primary key, so Owner's existing `hermes`
+    notebook prevented any other workspace from creating its own `hermes`
+    notebook for Hermes receipt saves.
+- Source changes:
+  - `src/stores/sqlite-note-store.js`
+    - new schema now uses `primary key (workspace_id, id)` for `notebooks`;
+    - startup migration rebuilds old global-primary-key `notebooks` tables
+      into workspace-scoped tables while preserving existing rows.
+  - `tests/sqlite-note-store.test.js`
+    - added regression coverage for migrating an old schema and creating
+      separate Owner/WuPing `hermes` notebooks.
+  - `docs/DATA_MODEL.md` and `docs/ARCHITECTURE.md`
+    - documented workspace-local notebook identity.
+- Commit/push:
+  - `259a9fe` (`fix: scope note notebooks by workspace`) pushed to
+    `origin/main`.
+- Verification:
+  - `npm test` passed, 56 tests;
+  - `npm run check`, `npm run check:architecture`, `npm run privacy`, and
+    `git diff --check` passed.
+- Production deployment:
+  - deployed from clean detached worktree
+    `/Users/hermes-dev/HermesMobileDev/tmp/note-deploy-259a9fe`;
+  - production target:
+    `/Users/hermes-host/HermesMobile/plugins/note`;
+  - backup:
+    `/Users/hermes-host/HermesMobile/backups/deploy/20260609T051515Z-plugin-note-note-workspace-notebooks-schema-v659`;
+  - after discovering the previous central deploy script deleted plugin
+    runtime `data/` and copied source ownership, restored Note `data/` from the
+    backup, removed the copied worktree `.git` file, restored owner to
+    `hermes-host:staff`, and kickstarted
+    `system/com.hermesmobile.plugin.note`.
+- Production readback:
+  - Note manifest is reachable at `127.0.0.1:4181`;
+  - `notebooks` primary key is now workspace-scoped:
+    `workspace_id pk=1`, `id pk=2`;
+  - `note:owner` and `note:weixin_wuping` now each have notebook id `hermes`;
+  - WuPing API create smoke returned `201`, delete returned `200`, and no smoke
+    note remained afterward.
+- Current local workspace state:
+  - `public/file-viewer.html`, `public/index.html`, and `public/styles.css`
+    remain dirty from unrelated UI work and were not deployed by this fix.
+
 ## Latest Note MCP Hermes Agent Compatibility Fix - 2026-06-03
 
 - User reported NAS Hermes Mobile could not use Note MCP even though the Note plugin itself could return notes.

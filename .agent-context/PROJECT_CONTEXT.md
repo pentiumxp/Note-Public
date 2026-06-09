@@ -4,8 +4,14 @@
 
 - Project name: Note
 - Workspace path: `C:\Users\xuxin\Documents\Note`
-- Runtime target: local Windows workspace, PowerShell shell, Node.js built-in test runner for the initial harness.
-- Current repository state: initialized as a local project scaffold; commit, push, and deployment require explicit user instruction.
+- Runtime targets: Mac development workspace under
+  `/Users/hermes-dev/HermesMobileDev/plugins/note` plus legacy local Windows
+  context. Use Node.js built-in test runner for the primary harness.
+- Current repository state: Git remote `origin` exists. Latest Mac production
+  schema fix is commit `259a9fe` on `origin/main`.
+- Mac production deploys must use the Home AI central deploy script from
+  `/Users/hermes-dev/HermesMobileDev/app`; normal plugin source deploys must
+  preserve production `data/` and restore production ownership.
 - Hermes Mobile local integration runs Note MCP from WSL Gateway workers. The
   Note plugin service should listen on `0.0.0.0:4181`; the MCP wrapper should
   use the Windows WSL host gateway address, not Windows-only loopback.
@@ -25,6 +31,9 @@ Create a maintainable notes project that functionally recreates the core Yinxian
 
 - Service First: note lifecycle and validation rules live in `src/services/note-service.js`.
 - Persistence is behind `src/stores/*`.
+- Notebook identity is workspace-local; SQLite `notebooks` must use
+  `primary key (workspace_id, id)` so common ids such as `inbox` and `hermes`
+  can exist independently in every Hermes workspace.
 - File-system import/export or external adapters belong in `src/providers/*`.
 - Tests start at the service boundary and expand into route/UI/workflow harnesses only when those surfaces exist.
 - Home AI platform contract pointer is `docs/HOME_AI_PLATFORM_CONTRACT.md`; canonical shared contract version is `20260606-v1`.
