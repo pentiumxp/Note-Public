@@ -107,7 +107,7 @@ Hermes plugin SQLite tables:
 plugin_workspaces(workspace_id, hermes_workspace_id, display_name, access_key_hash, scopes_json, status, created_at, updated_at)
 launch_tokens(token, workspace_id, expires_at, created_at)
 notes(id, workspace_id, title, body, notebook_id, tags_json, tasks_json, shortcut, reminder_at, status, created_at, updated_at, deleted_at)
-notebooks(id, workspace_id, name, source, created_at, updated_at)
+notebooks(id, workspace_id, name, source, created_at, updated_at, primary key(workspace_id, id))
 attachments(id, workspace_id, note_id, name, kind, size, metadata_json, created_at)
 reference_nodes(node_id, workspace_id, node_type, title, summary, privacy_class, metadata_json, created_at, updated_at)
 reference_object_refs(ref_id, workspace_id, plugin_id, object_type, object_id, display_title, display_subtitle, display_time, thumbnail_hint, snapshot_time, permission_scope_json, created_at, updated_at)

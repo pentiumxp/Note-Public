@@ -24,6 +24,10 @@
 | `created_at` | string | yes | ISO-8601 timestamp. |
 | `updated_at` | string | yes | ISO-8601 timestamp. |
 
+Notebook identity is workspace-local. SQLite must enforce
+`primary key (workspace_id, id)` so common system notebook ids such as `inbox`
+and `hermes` can exist independently in every Hermes workspace.
+
 Yinxiang imports map exported notebooks to workspace-local notebooks. The importer stores note body and bounded attachment metadata in `note.sqlite3`, records attachment assets in `attachment.sqlite3`, materializes resource payloads under ignored `data/attachments/`, and keeps raw import files under ignored `imports/`.
 
 ## Attachment

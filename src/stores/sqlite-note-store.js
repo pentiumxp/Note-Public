@@ -52,12 +52,13 @@ function ensureSchema(db) {
     );
 
     create table if not exists notebooks (
-      id text primary key,
+      id text not null,
       workspace_id text not null,
       name text not null,
       source text,
       created_at text not null,
       updated_at text not null,
+      primary key (workspace_id, id),
       unique(workspace_id, name)
     );
 
@@ -73,12 +74,51 @@ function ensureSchema(db) {
       foreign key (note_id) references notes(id)
     );
 
+  `);
+  ensureNotebookWorkspacePrimaryKey(db);
+  db.exec(`
     create index if not exists idx_notes_workspace_updated on notes(workspace_id, updated_at desc);
     create index if not exists idx_notes_workspace_deleted on notes(workspace_id, deleted_at);
     create index if not exists idx_attachments_workspace_note on attachments(workspace_id, note_id);
     create index if not exists idx_notebooks_workspace_name on notebooks(workspace_id, name);
   `);
   ensureReferenceGraphSchema(db);
+}
+
+function ensureNotebookWorkspacePrimaryKey(db) {
+  const columns = db.prepare('pragma table_info(notebooks)').all();
+  const workspacePk = columns.find((column) => column.name === 'workspace_id')?.pk || 0;
+  const idPk = columns.find((column) => column.name === 'id')?.pk || 0;
+  if (workspacePk > 0 && idPk > 0) {
+    return;
+  }
+
+  db.exec('begin immediate');
+  try {
+    db.exec(`
+      create table notebooks_workspace_scoped (
+        id text not null,
+        workspace_id text not null,
+        name text not null,
+        source text,
+        created_at text not null,
+        updated_at text not null,
+        primary key (workspace_id, id),
+        unique(workspace_id, name)
+      );
+
+      insert into notebooks_workspace_scoped (id, workspace_id, name, source, created_at, updated_at)
+      select id, workspace_id, name, source, created_at, updated_at
+      from notebooks;
+
+      drop table notebooks;
+      alter table notebooks_workspace_scoped rename to notebooks;
+    `);
+    db.exec('commit');
+  } catch (error) {
+    db.exec('rollback');
+    throw error;
+  }
 }
 
 function upsertNotebook(db, notebook) {

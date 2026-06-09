@@ -1,12 +1,17 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { DatabaseSync } = require('node:sqlite');
 const test = require('node:test');
 const {
   createSqliteHermesWorkspaceStore,
   createSqliteNoteStore,
   openNoteDatabase
 } = require('../src/stores/sqlite-note-store');
+const { ensureNotebookRecord } = require('../src/services/app-workspace-service');
 const { hashRawKey } = require('../src/services/hermes-plugin-service');
 
 test('SQLite note store isolates owner and non-owner workspaces', async () => {
@@ -77,4 +82,45 @@ test('SQLite schema has required workspace indexes', () => {
   assert.ok(indexes.includes('idx_notes_workspace_updated'));
   assert.ok(indexes.includes('idx_notes_workspace_deleted'));
   assert.ok(indexes.includes('idx_attachments_workspace_note'));
+});
+
+test('SQLite schema migrates notebooks to workspace-scoped ids', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'note-notebooks-schema-'));
+  const dbPath = path.join(dir, 'note.sqlite3');
+  const oldDb = new DatabaseSync(dbPath);
+  oldDb.exec(`
+    create table notebooks (
+      id text primary key,
+      workspace_id text not null,
+      name text not null,
+      source text,
+      created_at text not null,
+      updated_at text not null,
+      unique(workspace_id, name)
+    );
+
+    insert into notebooks (id, workspace_id, name, source, created_at, updated_at)
+    values ('hermes', 'note:owner', 'Hermes Mobile', 'mcp', '2026-06-09T00:00:00.000Z', '2026-06-09T00:00:00.000Z');
+  `);
+  oldDb.close();
+
+  const db = openNoteDatabase(dbPath);
+  const tableInfo = db.prepare('pragma table_info(notebooks)').all();
+  assert.equal(tableInfo.find((column) => column.name === 'workspace_id').pk, 1);
+  assert.equal(tableInfo.find((column) => column.name === 'id').pk, 2);
+
+  ensureNotebookRecord(db, 'note:owner', 'hermes');
+  ensureNotebookRecord(db, 'note:weixin_wuping', 'hermes');
+
+  const rows = db.prepare(`
+    select workspace_id, id, name
+    from notebooks
+    where id = 'hermes'
+    order by workspace_id
+  `).all().map((row) => ({ ...row }));
+  assert.deepEqual(rows, [
+    { workspace_id: 'note:owner', id: 'hermes', name: 'Hermes Mobile' },
+    { workspace_id: 'note:weixin_wuping', id: 'hermes', name: 'Hermes Mobile' }
+  ]);
+  db.close();
 });
