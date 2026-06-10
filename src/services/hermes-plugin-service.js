@@ -6,6 +6,14 @@ const DEFAULT_SCOPES = Object.freeze(['notes:read', 'notes:write', 'notes:search
 const TOKEN_TTL_SECONDS = 300;
 const APPEARANCE_THEMES = Object.freeze(['dark', 'light']);
 const DEFAULT_APPEARANCE = Object.freeze({ theme: 'light' });
+const HERMES_PLUGIN_ACTIONS = Object.freeze([
+  { id: 'new_note', label: '记一条', route: 'new_note', priority: 10 },
+  { id: 'search', label: '搜笔记', route: 'search', priority: 20 },
+  { id: 'recent', label: '最近笔记', route: 'recent', priority: 30 },
+  { id: 'capture', label: '快速摘录', route: 'capture', priority: 40 },
+  { id: 'notebooks', label: '笔记本', route: 'notebooks', priority: 50 },
+  { id: 'receipt_notes', label: 'Hermes 回执笔记', route: 'receipt_notes', priority: 60 }
+]);
 
 const PLUGIN_MANIFEST = Object.freeze({
   id: 'note',
@@ -46,7 +54,14 @@ const PLUGIN_MANIFEST = Object.freeze({
     entry_query: {
       theme: 'pluginTheme'
     }
-  }
+  },
+  actions: HERMES_PLUGIN_ACTIONS.map((action) => ({
+    id: action.id,
+    label: action.label,
+    placement: ['plugin_drawer_frequent', 'dock_long_press', 'search'],
+    priority: action.priority,
+    entry: { type: 'plugin_route', pluginRoute: action.route }
+  }))
 });
 
 function createHermesPluginService(options) {

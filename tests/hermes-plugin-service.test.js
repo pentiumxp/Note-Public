@@ -53,6 +53,13 @@ test('manifest is readable before workspace provisioning and is bounded', async 
   assert.equal(manifest.entry.url, '/note.html?embed=hermes');
   assert.equal(manifest.workspace.idFormat, 'note:<hermes_workspace_id>');
   assert.deepEqual(manifest.appearance_sync.entry_query, { theme: 'pluginTheme' });
+  assert.deepEqual(manifest.actions.find((action) => action.id === 'new_note'), {
+    id: 'new_note',
+    label: '记一条',
+    placement: ['plugin_drawer_frequent', 'dock_long_press', 'search'],
+    priority: 10,
+    entry: { type: 'plugin_route', pluginRoute: 'new_note' }
+  });
   const text = JSON.stringify(manifest);
   assert.doesNotMatch(text, /secret|access[_-]?key|sqlite|ProgramData|volume1/i);
 });

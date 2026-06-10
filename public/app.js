@@ -1,6 +1,10 @@
 'use strict';
 
 const STORAGE_KEY = 'note.workspace.v2';
+const INITIAL_PLUGIN_ROUTE = new URLSearchParams(window.location.search).get('pluginRoute')
+  || new URLSearchParams(window.location.search).get('route')
+  || new URLSearchParams(window.location.search).get('pluginActionId')
+  || '';
 
 const attachmentIcons = {
   image: '▣',
@@ -606,6 +610,49 @@ function handleMobileTab(tab) {
   }
   resetNoteListWindow();
   render();
+}
+
+function normalizeInitialPluginRoute() {
+  return String(INITIAL_PLUGIN_ROUTE || '').trim().toLowerCase();
+}
+
+function applyInitialPluginRoute() {
+  const route = normalizeInitialPluginRoute();
+  if (!route) return;
+  if (route === 'new_note' || route === 'capture') {
+    openCreateSheet();
+    return;
+  }
+  if (route === 'search') {
+    closeEditor();
+    elements.mobileSearchInput.focus();
+    elements.searchInput.focus();
+    return;
+  }
+  if (route === 'recent') {
+    closeEditor();
+    selectedFilter = { type: 'all' };
+    setSearch('');
+    elements.sortSelect.value = 'updated';
+    resetNoteListWindow();
+    render();
+    return;
+  }
+  if (route === 'notebooks') {
+    closeEditor();
+    selectedFilter = { type: 'notebook', notebookId: state.notebooks[0]?.id || 'notebook_inbox' };
+    setSearch('');
+    resetNoteListWindow();
+    render();
+    return;
+  }
+  if (route === 'receipt_notes') {
+    closeEditor();
+    selectedFilter = { type: 'search', query: 'Hermes 回执' };
+    setSearch('Hermes 回执');
+    resetNoteListWindow();
+    render();
+  }
 }
 
 function applySearch(query) {
@@ -1226,9 +1273,11 @@ async function loadImportedWorkspace() {
     elements.syncStatus.textContent = `已载入 ${state.notes.length} 条导入笔记`;
     resetNoteListWindow();
     render();
+    applyInitialPluginRoute();
   } catch (error) {
     elements.syncStatus.textContent = '本地数据加载失败';
     console.error(error);
+    applyInitialPluginRoute();
   }
 }
 
