@@ -10,6 +10,7 @@ runtime/
 logs/
 tmp/
 imports/
+.codegraph/
 *.log
 
 # Build and coverage outputs
