@@ -17,27 +17,45 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #111315;
-  --surface: #191c1f;
-  --surface-soft: #202428;
-  --surface-green: rgba(122, 199, 167, 0.12);
-  --ink: #eef0ed;
-  --muted: #9aa3a5;
-  --line: #343a40;
-  --green: #7ac7a7;
-  --green-dark: #9ee7c4;
+  --bg: #000000;
+  --surface: #050505;
+  --surface-soft: #111111;
+  --surface-green: #0b2418;
+  --ink: #ffffff;
+  --muted: #e2e8f0;
+  --line: #303030;
+  --green: #44d58b;
+  --green-dark: #7ef0b2;
   --amber: #f4c878;
   --blue: #8bbbd9;
   --red: #f1877d;
   --shadow: 0 18px 44px rgba(0, 0, 0, 0.42);
 }
 
+:root[data-theme="dark"] body,
+:root[data-theme="dark"] .app-shell,
+:root[data-theme="dark"] .workspace,
+:root[data-theme="dark"] .home-surface,
+:root[data-theme="dark"] .editor-panel {
+  background: var(--bg);
+  color: var(--ink);
+}
+
 :root[data-theme="dark"] input,
 :root[data-theme="dark"] select,
-:root[data-theme="dark"] textarea {
+:root[data-theme="dark"] textarea,
+:root[data-theme="dark"] #sort-select,
+:root[data-theme="dark"] .title-input,
+:root[data-theme="dark"] .body-editor {
   background: var(--surface-soft);
   color: var(--ink);
   border-color: var(--line);
+}
+
+:root[data-theme="dark"] input::placeholder,
+:root[data-theme="dark"] textarea::placeholder,
+:root[data-theme="dark"] .title-input::placeholder {
+  color: #cbd5e1;
 }
 
 :root[data-theme="dark"] .rail {
@@ -55,29 +73,91 @@
   background: #0d0f10;
 }
 
+:root[data-theme="dark"] .sidebar,
 :root[data-theme="dark"] .mobile-home-head,
 :root[data-theme="dark"] .note-list,
 :root[data-theme="dark"] .note-row,
 :root[data-theme="dark"] .tag-pill,
+:root[data-theme="dark"] .nav-row,
 :root[data-theme="dark"] .home-actions button,
 :root[data-theme="dark"] .icon-button,
 :root[data-theme="dark"] .section-actions button,
 :root[data-theme="dark"] .section-head button,
 :root[data-theme="dark"] .back-button,
 :root[data-theme="dark"] .home-search,
+:root[data-theme="dark"] .home-search button,
 :root[data-theme="dark"] .attachment-row,
+:root[data-theme="dark"] .attachment-preview,
 :root[data-theme="dark"] .task-row,
+:root[data-theme="dark"] .empty-state,
 :root[data-theme="dark"] .sheet-panel,
+:root[data-theme="dark"] .sheet-grid button,
+:root[data-theme="dark"] .meta-chip,
+:root[data-theme="dark"] .note-thumb,
+:root[data-theme="dark"] .note-row-image-chip,
+:root[data-theme="dark"] .inline-image-thumb,
+:root[data-theme="dark"] .file-type-icon,
 :root[data-theme="dark"] .mobile-tabs {
   background: var(--surface);
   color: var(--ink);
 }
 
+:root[data-theme="dark"] .mobile-home-head {
+  background: var(--surface);
+}
+
 :root[data-theme="dark"] .note-row:hover,
 :root[data-theme="dark"] .note-swipe-row.is-active .note-row,
 :root[data-theme="dark"] .nav-row:hover,
+:root[data-theme="dark"] .nav-row.is-selected,
+:root[data-theme="dark"] .home-search button:hover,
 :root[data-theme="dark"] .attachment-row.is-openable:hover {
   background: var(--surface-soft);
+}
+
+:root[data-theme="dark"] .account-state,
+:root[data-theme="dark"] .eyebrow,
+:root[data-theme="dark"] .section-title,
+:root[data-theme="dark"] .search-box,
+:root[data-theme="dark"] .meta-grid label,
+:root[data-theme="dark"] .note-row-snippet,
+:root[data-theme="dark"] .note-row-meta,
+:root[data-theme="dark"] .sheet-grid small,
+:root[data-theme="dark"] .attachment-kind,
+:root[data-theme="dark"] .empty-state,
+:root[data-theme="dark"] .mobile-tabs button,
+:root[data-theme="dark"] .home-search button {
+  color: var(--muted);
+}
+
+:root[data-theme="dark"] .note-row-title,
+:root[data-theme="dark"] .account-name,
+:root[data-theme="dark"] .mobile-title,
+:root[data-theme="dark"] .sheet-title,
+:root[data-theme="dark"] .attachment-name,
+:root[data-theme="dark"] .section-head h2 {
+  color: var(--ink);
+}
+
+:root[data-theme="dark"] .save-state {
+  background: var(--surface-green);
+  color: var(--ink);
+  border-color: #1f7a50;
+}
+
+:root[data-theme="dark"] .sheet-backdrop,
+:root[data-theme="dark"] .image-preview-backdrop {
+  background: rgba(0, 0, 0, 0.82);
+}
+
+:root[data-theme="dark"] .sheet-handle {
+  background: #4b5563;
+}
+
+:root[data-theme="dark"] .note-delete-action,
+:root[data-theme="dark"] .note-swipe-row.is-commit .note-swipe-actions,
+:root[data-theme="dark"] .note-swipe-row.is-commit .note-delete-action {
+  background: #000000;
 }
 
 :root[data-theme="dark"] .mobile-tabs {

@@ -1,5 +1,26 @@
 # Handoff
 
+## 2026-06-12 Dark Theme Preview Polish
+
+- Status: local source validated; prepared for private/public push.
+- UI changes:
+  - `public/styles.css` strengthens the Note dark theme to a true black surface
+    with higher-contrast text, inputs, chips, thumbnails, sidebars, and sheets.
+  - `public/file-viewer.html` applies the same dark palette to Markdown
+    preview cards, tables, code blocks, action sheets, and generated
+    print/share HTML.
+  - `public/index.html` bumps the stylesheet query string to
+    `20260609-dark-theme-v1`.
+- Validation passed:
+  - `npm test` passed: 57/57.
+  - `npm run check` passed.
+  - `npm run privacy` passed.
+  - `git diff --check` passed.
+- Privacy:
+  - No raw workspace key, registration key, launch token, cookie, attachment
+    bytes, full note body, screenshot, password, or long log was intentionally
+    stored.
+
 ## Latest Mac Production Workspace Notebook Schema Fix - 2026-06-09
 
 - User reported WuPing workspace Save to Note showed:
