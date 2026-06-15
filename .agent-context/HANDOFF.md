@@ -2,7 +2,7 @@
 
 ## 2026-06-15 Note Header Horizontal Title And Refresh
 
-- Status: local source validated; not committed or deployed in this turn.
+- Status: committed, pushed, and deployed to Mac production.
 - UI changes:
   - `public/styles.css` fixes the narrow-screen `.home-topline` grid from the
     old avatar-era `40px 1fr auto` layout to `minmax(0, 1fr) auto`, so the
@@ -24,7 +24,37 @@
   - `node --test tests/home-toolbar-ui.test.js`
   - Home AI center check:
     `node tests/architecture-code-test-harness-map.test.js`
+  - Home AI deploy checks:
+    `node --check scripts/deploy-macos-production.js`,
+    `node tests/macos-production-deploy-script.test.js`, and
+    `node tests/production-status-smoke-harness.test.js`
   - `git diff --check`
+- Commit/push:
+  - `73463ee` (`优化 Note 标题栏刷新`) pushed to `origin/main` and
+    `public/main`.
+- Production deployment:
+  - deployed with:
+    `npm run --silent deploy:macos -- --plugin note --execute --json`
+  - source ref: clean commit `73463ee98d5c`;
+  - production target: `/Users/hermes-host/HermesMobile/plugins/note`;
+  - backup:
+    `/Users/hermes-host/HermesMobile/backups/deploy/20260615T081405Z-plugin-note-manual`;
+  - deploy plan preserved `data/` and `runtime/`, restored
+    `hermes-host:staff`, restarted `system/com.hermesmobile.plugin.note`, and
+    passed the Note manifest health check.
+- Production readback:
+  - `http://127.0.0.1:4181/` serves both
+    `styles.css?v=20260615-note-refresh-v1` and
+    `app.js?v=20260615-note-refresh-v1`;
+  - production HTML contains `#refresh-button`;
+  - production CSS contains `.mobile-title` horizontal/no-wrap rules and the
+    fixed small-screen `.home-topline` grid;
+  - production JS contains `triggerWorkspaceRefresh`, reloads
+    `/api/v1/app/workspace`, and preserves selected note when still present;
+  - production manifest readback returned plugin id `note`.
+- Evidence ledger:
+  - appended test, deploy, and production smoke records to
+    `$HOME/.homeai-qa/note-evidence-ledger.jsonl`.
 - Static readback:
   - CSS and JS query versions both read `20260615-note-refresh-v1`;
   - local HTML contains `#refresh-button`;
