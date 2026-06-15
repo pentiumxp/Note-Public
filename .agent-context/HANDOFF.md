@@ -2,7 +2,7 @@
 
 ## 2026-06-15 Note List Header And Title Clamp
 
-- Status: local source validated; not deployed in this turn.
+- Status: committed, pushed, and deployed to Mac production.
 - UI changes:
   - `public/styles.css` hides `.list-toolbar`, so the note list no longer
     displays the visible `最近更新` sort label above the list.
@@ -19,7 +19,40 @@
   - `node --test tests/home-toolbar-ui.test.js`
   - Home AI center check:
     `node tests/architecture-code-test-harness-map.test.js`
+  - Home AI deploy checks:
+    `node --check scripts/deploy-macos-production.js`,
+    `node tests/macos-production-deploy-script.test.js`, and
+    `node tests/production-status-smoke-harness.test.js`
   - `git diff --check`
+- Commit/push:
+  - `100f3da` (`优化 Note 列表标题显示`) pushed to `origin/main` and
+    `public/main`.
+- Production deployment:
+  - deployed with:
+    `npm run --silent deploy:macos -- --plugin note --execute --json`
+  - source ref: clean commit `100f3dabaff0`;
+  - production target: `/Users/hermes-host/HermesMobile/plugins/note`;
+  - backup:
+    `/Users/hermes-host/HermesMobile/backups/deploy/20260615T031453Z-plugin-note-manual`;
+  - deploy plan preserved `data/` and `runtime/`, restored
+    `hermes-host:staff`, restarted `system/com.hermesmobile.plugin.note`, and
+    passed the Note manifest health check.
+- Production readback:
+  - `http://127.0.0.1:4181/` serves
+    `styles.css?v=20260615-note-title-v1`;
+  - production `styles.css` contains `.list-toolbar { display: none; }`;
+  - production `styles.css` contains `.note-row-title` two-line clamp via
+    `-webkit-line-clamp: 2` and `white-space: normal`;
+  - production manifest readback returned plugin id `note`.
+- Evidence ledger:
+  - appended test, deploy, and production smoke records to
+    `$HOME/.homeai-qa/note-evidence-ledger.jsonl`.
+- Caveat:
+  - A direct launch-token smoke from the development shell was not completed:
+    the production Owner `.hermes-note` directory correctly denies normal
+    development-user reads, and the available sudo password file did not pass
+    `sudo` in this shell. The central deploy script's launchd and manifest
+    validations passed.
 - Privacy:
   - No raw workspace key, registration key, launch token, cookie, attachment
     bytes, full note body, screenshot, password, or long log was intentionally
