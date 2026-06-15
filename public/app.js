@@ -43,6 +43,7 @@ const elements = {
   newNoteButton: document.querySelector('#new-note-button'),
   searchInput: document.querySelector('#search-input'),
   mobileSearchInput: document.querySelector('#mobile-search-input'),
+  refreshButton: document.querySelector('#refresh-button'),
   homeSurface: document.querySelector('#home-surface'),
   noteList: document.querySelector('#note-list'),
   notebookList: document.querySelector('#notebook-list'),
@@ -119,6 +120,7 @@ function wireEvents() {
 
   elements.searchInput.addEventListener('input', () => applySearch(elements.searchInput.value));
   elements.mobileSearchInput.addEventListener('input', () => applySearch(elements.mobileSearchInput.value));
+  elements.refreshButton.addEventListener('click', () => triggerWorkspaceRefresh());
   elements.titleInput.addEventListener('input', updateSelectedFromEditor);
   elements.bodyEditor.addEventListener('input', updateSelectedFromEditor);
   elements.bodyEditor.addEventListener('click', handleBodyEditorClick);
@@ -194,8 +196,7 @@ function wireHermesEmbedding() {
       applyHermesTheme(message);
     }
     if (message.type === 'hermes:workspace' || message.type === 'hermes:refresh') {
-      render();
-      emitNavigationState();
+      triggerWorkspaceRefresh();
       postHostEvent('plugin:refreshRequested', { plugin: 'note' });
     }
     if (message.type === 'hermes:visibility' && message.visible) {
@@ -1260,6 +1261,27 @@ function persist() {
 }
 
 async function loadImportedWorkspace() {
+  return refreshImportedWorkspace({ preserveSelection: false, applyInitialRoute: true });
+}
+
+async function triggerWorkspaceRefresh() {
+  if (elements.refreshButton.disabled) return;
+  const previousStatus = elements.syncStatus.textContent;
+  elements.refreshButton.disabled = true;
+  elements.refreshButton.setAttribute('aria-busy', 'true');
+  elements.syncStatus.textContent = '正在刷新';
+  try {
+    await refreshImportedWorkspace({ preserveSelection: true, applyInitialRoute: false });
+  } catch {
+    elements.syncStatus.textContent = previousStatus || '刷新失败';
+  } finally {
+    elements.refreshButton.disabled = false;
+    elements.refreshButton.removeAttribute('aria-busy');
+  }
+}
+
+async function refreshImportedWorkspace({ preserveSelection = false, applyInitialRoute = false } = {}) {
+  const previousSelectedNoteId = selectedNoteId;
   try {
     const response = await appApiFetch('/api/v1/app/workspace');
     if (!response.ok) {
@@ -1287,15 +1309,21 @@ async function loadImportedWorkspace() {
       updatedAt: note.updatedAt,
       detailLoaded: false
     }));
-    selectedNoteId = null;
+    selectedNoteId = preserveSelection && state.notes.some((note) => note.id === previousSelectedNoteId)
+      ? previousSelectedNoteId
+      : null;
     elements.syncStatus.textContent = `已载入 ${state.notes.length} 条导入笔记`;
     resetNoteListWindow();
     render();
-    applyInitialPluginRoute();
+    if (applyInitialRoute) {
+      applyInitialPluginRoute();
+    }
   } catch (error) {
     elements.syncStatus.textContent = '本地数据加载失败';
     console.error(error);
-    applyInitialPluginRoute();
+    if (applyInitialRoute) {
+      applyInitialPluginRoute();
+    }
   }
 }
 

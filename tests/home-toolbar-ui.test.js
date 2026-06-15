@@ -26,6 +26,12 @@ test('home toolbar removes large quick-create entries', () => {
   assert.match(css, /body\s*\{[\s\S]*?font-family:\s*inherit;/);
   assert.match(appJs, /pluginFontSize/);
   assert.match(appJs, /fontFamily = theme\.fontFamily/);
+  assert.match(html, /id="refresh-button"[\s\S]*aria-label="刷新"/);
+  assert.match(appJs, /refreshButton:\s*document\.querySelector\('#refresh-button'\)/);
+  assert.match(appJs, /triggerWorkspaceRefresh/);
+  assert.match(css, /\.mobile-title\s*\{[\s\S]*?white-space:\s*nowrap;/);
+  assert.match(css, /\.mobile-title\s*\{[\s\S]*?writing-mode:\s*horizontal-tb;/);
+  assert.match(css, /@media \(max-width: 420px\)[\s\S]*?\.home-topline\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) auto;/);
   assert.doesNotMatch(html, />许</);
   assert.doesNotMatch(appJs, /note-row-snippet/);
 });

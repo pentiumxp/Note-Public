@@ -1,5 +1,41 @@
 # Handoff
 
+## 2026-06-15 Note Header Horizontal Title And Refresh
+
+- Status: local source validated; not committed or deployed in this turn.
+- UI changes:
+  - `public/styles.css` fixes the narrow-screen `.home-topline` grid from the
+    old avatar-era `40px 1fr auto` layout to `minmax(0, 1fr) auto`, so the
+    `全部笔记` title stays horizontal.
+  - `public/styles.css` adds `white-space: nowrap` and
+    `writing-mode: horizontal-tb` to `.mobile-title`.
+  - `public/index.html` adds a `刷新` action button to the Note list header.
+  - `public/app.js` wires the refresh button and host `hermes:refresh` /
+    `hermes:workspace` messages to reload `/api/v1/app/workspace` and rerender
+    the list, preserving the selected note when it still exists.
+  - `public/index.html` bumps both `styles.css` and `app.js` query strings to
+    `20260615-note-refresh-v1`.
+  - `tests/home-toolbar-ui.test.js` covers the refresh button, refresh handler,
+    and horizontal title CSS rules.
+- Validation passed:
+  - `npm run check`
+  - `npm run check:architecture`
+  - `npm run privacy`
+  - `node --test tests/home-toolbar-ui.test.js`
+  - Home AI center check:
+    `node tests/architecture-code-test-harness-map.test.js`
+  - `git diff --check`
+- Static readback:
+  - CSS and JS query versions both read `20260615-note-refresh-v1`;
+  - local HTML contains `#refresh-button`;
+  - local CSS contains the horizontal title and fixed small-screen grid rules;
+  - local JS contains `triggerWorkspaceRefresh` and reloads
+    `/api/v1/app/workspace`.
+- Privacy:
+  - No raw workspace key, registration key, launch token, cookie, attachment
+    bytes, full note body, screenshot, password, or long log was intentionally
+    stored.
+
 ## 2026-06-15 Note Compact List And Host Font Sync
 
 - Status: committed, pushed, and deployed to Mac production.

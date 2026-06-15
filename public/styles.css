@@ -416,11 +416,17 @@ button {
 .mobile-title {
   font-size: 24px;
   font-weight: 850;
+  min-width: 0;
+  white-space: nowrap;
+  writing-mode: horizontal-tb;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .home-actions {
   display: flex;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .home-actions button,
@@ -437,6 +443,13 @@ button {
 .home-actions button {
   width: 34px;
   height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.home-actions button:disabled {
+  opacity: 0.56;
 }
 
 .home-search {
@@ -1712,7 +1725,7 @@ h2 {
   }
 
   .home-topline {
-    grid-template-columns: 40px 1fr auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
   }
 
