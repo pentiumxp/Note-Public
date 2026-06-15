@@ -2,7 +2,7 @@
 
 ## 2026-06-15 Note Detail Title Size And Wrapping
 
-- Status: local source validated; not committed or deployed in this turn.
+- Status: committed, pushed, and deployed to Mac production.
 - UI changes:
   - `public/index.html` changes the detail title control from single-line
     `<input>` to `<textarea rows="1">` so long note titles can wrap.
@@ -23,7 +23,37 @@
   - `node --test tests/home-toolbar-ui.test.js`
   - Home AI center check:
     `node tests/architecture-code-test-harness-map.test.js`
+  - Home AI deploy checks:
+    `node --check scripts/deploy-macos-production.js`,
+    `node tests/macos-production-deploy-script.test.js`, and
+    `node tests/production-status-smoke-harness.test.js`
   - `git diff --check`
+- Commit/push:
+  - `d8b4a30` (`优化 Note 详情标题显示`) pushed to `origin/main` and
+    `public/main`.
+- Production deployment:
+  - deployed with:
+    `npm run --silent deploy:macos -- --plugin note --execute --json`
+  - source ref: clean commit `d8b4a308f883`;
+  - production target: `/Users/hermes-host/HermesMobile/plugins/note`;
+  - backup:
+    `/Users/hermes-host/HermesMobile/backups/deploy/20260615T082803Z-plugin-note-manual`;
+  - deploy plan preserved `data/` and `runtime/`, restored
+    `hermes-host:staff`, restarted `system/com.hermesmobile.plugin.note`, and
+    passed the Note manifest health check.
+- Production readback:
+  - `http://127.0.0.1:4181/` serves both
+    `styles.css?v=20260615-detail-title-v1` and
+    `app.js?v=20260615-detail-title-v1`;
+  - production HTML contains `<textarea id="title-input">`;
+  - production CSS contains 24px desktop title size, 22px mobile title size,
+    `white-space: pre-wrap`, `overflow-wrap: anywhere`, and `resize: none`;
+  - production JS contains `syncTitleInputHeight`, uses `scrollHeight`, and
+    wires the title input handler;
+  - production manifest readback returned plugin id `note`.
+- Evidence ledger:
+  - appended test, deploy, and production smoke records to
+    `$HOME/.homeai-qa/note-evidence-ledger.jsonl`.
 - Static readback:
   - CSS and JS query versions both read `20260615-detail-title-v1`;
   - local HTML contains `<textarea id="title-input">`;
