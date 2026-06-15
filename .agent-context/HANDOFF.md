@@ -1,5 +1,40 @@
 # Handoff
 
+## 2026-06-15 Note Detail Title Size And Wrapping
+
+- Status: local source validated; not committed or deployed in this turn.
+- UI changes:
+  - `public/index.html` changes the detail title control from single-line
+    `<input>` to `<textarea rows="1">` so long note titles can wrap.
+  - `public/styles.css` reduces `.title-input` from 34px to 24px on the main
+    layout and from 30px to 22px on the mobile/editor overlay layout.
+  - `public/styles.css` adds wrapping and long-word handling for the title via
+    `white-space: pre-wrap` and `overflow-wrap: anywhere`.
+  - `public/app.js` adds `syncTitleInputHeight()` and calls it when rendering
+    or editing the title, so the textarea grows with wrapped title content.
+  - `public/index.html` bumps both `styles.css` and `app.js` query strings to
+    `20260615-detail-title-v1`.
+  - `tests/home-toolbar-ui.test.js` covers the textarea title, reduced font
+    sizes, wrapping rules, and auto-height hook.
+- Validation passed:
+  - `npm run check`
+  - `npm run check:architecture`
+  - `npm run privacy`
+  - `node --test tests/home-toolbar-ui.test.js`
+  - Home AI center check:
+    `node tests/architecture-code-test-harness-map.test.js`
+  - `git diff --check`
+- Static readback:
+  - CSS and JS query versions both read `20260615-detail-title-v1`;
+  - local HTML contains `<textarea id="title-input">`;
+  - local CSS contains 24px desktop title size, 22px mobile title size,
+    `white-space: pre-wrap`, and `overflow-wrap: anywhere`;
+  - local JS contains `syncTitleInputHeight` and `scrollHeight`.
+- Privacy:
+  - No raw workspace key, registration key, launch token, cookie, attachment
+    bytes, full note body, screenshot, password, or long log was intentionally
+    stored.
+
 ## 2026-06-15 Note Header Horizontal Title And Refresh
 
 - Status: committed, pushed, and deployed to Mac production.

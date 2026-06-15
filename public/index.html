@@ -44,7 +44,7 @@
           || (darkQuery && darkQuery.matches ? 'dark' : 'light');
       })();
     </script>
-    <link rel="stylesheet" href="./styles.css?v=20260615-note-refresh-v1">
+    <link rel="stylesheet" href="./styles.css?v=20260615-detail-title-v1">
   </head>
   <body>
     <div id="app" class="app-shell">
@@ -135,7 +135,7 @@
           </div>
 
           <div class="editor-scroll">
-            <input id="title-input" class="title-input" placeholder="无标题笔记">
+            <textarea id="title-input" class="title-input" rows="1" placeholder="无标题笔记"></textarea>
             <div class="meta-grid">
               <label>笔记本 <select id="notebook-select"></select></label>
               <label>标签 <input id="tag-input" placeholder="用逗号分隔"></label>
@@ -191,6 +191,6 @@
 
     <input id="photo-input" type="file" accept="image/*" hidden>
     <input id="file-input" type="file" hidden>
-    <script src="./app.js?v=20260615-note-refresh-v1"></script>
+    <script src="./app.js?v=20260615-detail-title-v1"></script>
   </body>
 </html>

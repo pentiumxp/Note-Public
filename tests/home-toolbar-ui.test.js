@@ -11,6 +11,7 @@ test('home toolbar removes large quick-create entries', () => {
   const css = fs.readFileSync(path.join(process.cwd(), 'public', 'styles.css'), 'utf8');
   const listToolbar = html.match(/<div class="list-toolbar">[\s\S]*?<\/div>/)?.[0] || '';
   const sheetPanel = html.match(/<section class="sheet-panel"[\s\S]*?<\/section>/)?.[0] || '';
+  const titleInput = html.match(/<textarea id="title-input"[\s\S]*?<\/textarea>/)?.[0] || '';
 
   assert.doesNotMatch(html, /class="quick-create-strip"/);
   assert.match(sheetPanel, /data-create-kind="super"/);
@@ -32,6 +33,15 @@ test('home toolbar removes large quick-create entries', () => {
   assert.match(css, /\.mobile-title\s*\{[\s\S]*?white-space:\s*nowrap;/);
   assert.match(css, /\.mobile-title\s*\{[\s\S]*?writing-mode:\s*horizontal-tb;/);
   assert.match(css, /@media \(max-width: 420px\)[\s\S]*?\.home-topline\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) auto;/);
+  assert.match(titleInput, /rows="1"/);
+  assert.match(css, /\.title-input\s*\{[\s\S]*?font-size:\s*24px;/);
+  assert.match(css, /\.title-input\s*\{[\s\S]*?white-space:\s*pre-wrap;/);
+  assert.match(css, /\.title-input\s*\{[\s\S]*?overflow-wrap:\s*anywhere;/);
+  assert.match(css, /\.title-input\s*\{[\s\S]*?resize:\s*none;/);
+  assert.match(css, /\.title-input\s*\{[\s\S]*?overflow:\s*hidden;/);
+  assert.match(css, /\.title-input\s*\{[\s\S]*?line-height:\s*1\.28;/);
+  assert.match(css, /@media \(max-width: 1120px\)[\s\S]*?\.title-input\s*\{[\s\S]*?font-size:\s*22px;/);
+  assert.match(appJs, /syncTitleInputHeight/);
   assert.doesNotMatch(html, />许</);
   assert.doesNotMatch(appJs, /note-row-snippet/);
 });

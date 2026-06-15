@@ -121,7 +121,10 @@ function wireEvents() {
   elements.searchInput.addEventListener('input', () => applySearch(elements.searchInput.value));
   elements.mobileSearchInput.addEventListener('input', () => applySearch(elements.mobileSearchInput.value));
   elements.refreshButton.addEventListener('click', () => triggerWorkspaceRefresh());
-  elements.titleInput.addEventListener('input', updateSelectedFromEditor);
+  elements.titleInput.addEventListener('input', () => {
+    syncTitleInputHeight();
+    updateSelectedFromEditor();
+  });
   elements.bodyEditor.addEventListener('input', updateSelectedFromEditor);
   elements.bodyEditor.addEventListener('click', handleBodyEditorClick);
   elements.noteList.addEventListener('click', handleNoteListAttachmentClick, true);
@@ -1081,6 +1084,7 @@ function renderEditor() {
   const note = selectedNote();
   if (!note) {
     elements.titleInput.value = '';
+    syncTitleInputHeight();
     elements.bodyEditor.innerHTML = '';
     elements.tagInput.value = '';
     elements.taskList.innerHTML = '<div class="empty-state">选择或新建一篇笔记</div>';
@@ -1089,6 +1093,7 @@ function renderEditor() {
   }
 
   elements.titleInput.value = note.title || '';
+  syncTitleInputHeight();
   elements.bodyEditor.innerHTML = note.body || '';
   elements.notebookSelect.value = note.notebookId || state.notebooks[0]?.id || '';
   elements.tagInput.value = (note.tags || []).join(', ');
@@ -1248,6 +1253,11 @@ function updateSelectedFromEditor() {
   renderCounters();
   updateRenderedNoteRow(note);
   renderTags();
+}
+
+function syncTitleInputHeight() {
+  elements.titleInput.style.height = 'auto';
+  elements.titleInput.style.height = `${elements.titleInput.scrollHeight}px`;
 }
 
 function persistAndRender() {
