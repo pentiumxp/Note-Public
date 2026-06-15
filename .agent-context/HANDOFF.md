@@ -2,7 +2,7 @@
 
 ## 2026-06-15 Note Filter Shortcut Toggle State
 
-- Status: validated locally; commit/deploy in progress.
+- Status: committed, pushed, and deployed to Mac production.
 - UI changes:
   - Mobile Note list shortcut filters (`重要`, `含图`, `待办`) now toggle off
     when the currently selected shortcut filter is tapped again, returning to
@@ -33,6 +33,31 @@
   - Deploy plan:
     `npm run --silent deploy:macos -- --plugin note --json`
   - `git diff --check`
+- Commit/push:
+  - `a548a5c` (`优化 Note 快捷筛选状态`) pushed to `origin/main` and
+    `public/main`.
+- Production deployment:
+  - deployed with:
+    `npm run --silent deploy:macos -- --plugin note --execute --json`
+  - source ref: clean commit `a548a5c8fc8e`;
+  - production target: `/Users/hermes-host/HermesMobile/plugins/note`;
+  - backup:
+    `/Users/hermes-host/HermesMobile/backups/deploy/20260615T091041Z-plugin-note-manual`;
+  - deploy preserved `data/` and `runtime/`, restored `hermes-host:staff`,
+    restarted `system/com.hermesmobile.plugin.note`, and passed the Note
+    manifest health check.
+- Production readback:
+  - `http://127.0.0.1:4181/` serves both
+    `styles.css?v=20260615-filter-toggle-v1` and
+    `app.js?v=20260615-filter-toggle-v1`;
+  - production HTML contains the `重要`, `含图`, and `待办` shortcut filter
+    buttons with `aria-pressed="false"`;
+  - production JS contains the repeat-tap toggle-off logic and aria sync;
+  - production CSS contains selected color rules for light and dark themes;
+  - production manifest readback returned plugin id `note`.
+- Evidence ledger:
+  - appended test and deploy records to
+    `$HOME/.homeai-qa/note-evidence-ledger.jsonl`.
 - Privacy:
   - No raw note body, attachment content, access key, launch token, cookie,
     password, or long private log was intentionally stored.
