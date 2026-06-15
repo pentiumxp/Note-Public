@@ -209,7 +209,7 @@ function ensureNotebookRecord(db, workspaceId, notebookId, notebookName = '') {
     where workspace_id = ? and id = ?
   `).get(workspaceId, id);
   if (existing) {
-    if (isBrokenNotebookName(existing.name)) {
+    if (isBrokenNotebookName(existing.name) || isLegacySystemNotebookName(id, existing.name)) {
       db.prepare(`
         update notebooks
         set name = ?, source = coalesce(source, ?), updated_at = ?
@@ -229,15 +229,18 @@ function normalizeNotebookId(value) {
 }
 
 function notebookDisplayName(id, name = '') {
+  const normalizedId = normalizeNotebookId(id);
   const explicit = String(name || '').trim();
+  if (isLegacySystemNotebookName(normalizedId, explicit)) {
+    return 'Home AI';
+  }
   if (explicit && !isBrokenNotebookName(explicit)) {
     return explicit;
   }
-  const normalizedId = normalizeNotebookId(id);
   const known = {
     inbox: '收件箱',
     notebook_inbox: '收件箱',
-    hermes: 'Hermes Mobile'
+    hermes: 'Home AI'
   };
   if (known[normalizedId]) {
     return known[normalizedId];
@@ -246,6 +249,10 @@ function notebookDisplayName(id, name = '') {
     return '笔记本';
   }
   return normalizedId;
+}
+
+function isLegacySystemNotebookName(id, name = '') {
+  return normalizeNotebookId(id) === 'hermes' && String(name || '').trim() === 'Hermes Mobile';
 }
 
 function isBrokenNotebookName(value) {

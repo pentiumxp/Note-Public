@@ -27,6 +27,10 @@
 Notebook identity is workspace-local. SQLite must enforce
 `primary key (workspace_id, id)` so common system notebook ids such as `inbox`
 and `hermes` can exist independently in every Hermes workspace.
+The `hermes` notebook id is a legacy stable system id used by host save-to-Note
+flows; its user-facing display name is `Home AI`. Existing rows named
+`Hermes Mobile` for this id are historical data and should be repaired to
+`Home AI` without changing note `notebook_id` references.
 
 Yinxiang imports map exported notebooks to workspace-local notebooks. The importer stores note body and bounded attachment metadata in `note.sqlite3`, records attachment assets in `attachment.sqlite3`, materializes resource payloads under ignored `data/attachments/`, and keeps raw import files under ignored `imports/`.
 

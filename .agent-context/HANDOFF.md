@@ -1,5 +1,45 @@
 # Handoff
 
+## 2026-06-15 Note Home AI Notebook Display Name
+
+- Status: implementation validated locally; commit/deploy/data repair in progress.
+- Product/data rule:
+  - The stable system notebook id remains `hermes` for host save-to-Note
+    compatibility.
+  - The user-facing notebook display name for `id='hermes'` is now `Home AI`.
+  - Existing notebook rows named `Hermes Mobile` for `id='hermes'` are
+    historical metadata and should be repaired to `Home AI` without changing
+    note `notebook_id` references.
+- Changed files:
+  - `src/services/app-workspace-service.js`
+  - `tests/body-rendering-and-notebooks.test.js`
+  - `tests/sqlite-note-store.test.js`
+  - `docs/DATA_MODEL.md`
+- Validation passed so far:
+  - `node --check src/services/app-workspace-service.js`
+  - `node --check tests/body-rendering-and-notebooks.test.js`
+  - `node --check tests/sqlite-note-store.test.js`
+  - `node --test tests/body-rendering-and-notebooks.test.js tests/sqlite-note-store.test.js`
+  - `npm test`
+  - `npm run check`
+  - `npm run check:architecture`
+  - `npm run privacy`
+  - Home AI center: `node tests/architecture-code-test-harness-map.test.js`
+  - Home AI deploy checks:
+    `node --check scripts/deploy-macos-production.js`,
+    `node tests/macos-production-deploy-script.test.js`, and
+    `node tests/production-status-smoke-harness.test.js`
+  - `git diff --check`
+  - Deploy plan:
+    `npm run --silent deploy:macos -- --plugin note --json`
+- Production note before repair:
+  - Metadata-only query showed `id='hermes'` rows named `Hermes Mobile` in
+    four workspaces: `note:owner`, `note:weixin_stephen`,
+    `note:weixin_wuping`, and `note:xjz`.
+- Privacy:
+  - No raw note body, attachment content, access key, launch token, cookie,
+    password, or long private log was intentionally stored.
+
 ## 2026-06-15 Note Detail Title Size And Wrapping
 
 - Status: committed, pushed, and deployed to Mac production.

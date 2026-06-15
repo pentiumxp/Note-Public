@@ -119,8 +119,8 @@ test('SQLite schema migrates notebooks to workspace-scoped ids', () => {
     order by workspace_id
   `).all().map((row) => ({ ...row }));
   assert.deepEqual(rows, [
-    { workspace_id: 'note:owner', id: 'hermes', name: 'Hermes Mobile' },
-    { workspace_id: 'note:weixin_wuping', id: 'hermes', name: 'Hermes Mobile' }
+    { workspace_id: 'note:owner', id: 'hermes', name: 'Home AI' },
+    { workspace_id: 'note:weixin_wuping', id: 'hermes', name: 'Home AI' }
   ]);
   db.close();
 });

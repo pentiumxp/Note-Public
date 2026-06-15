@@ -25,7 +25,8 @@ test('ENML note bodies remove wrapper noise while preserving structure', () => {
 
 test('notebook display names repair known mojibake and plugin ids', () => {
   assert.equal(notebookDisplayName('inbox', '???'), '收件箱');
-  assert.equal(notebookDisplayName('hermes'), 'Hermes Mobile');
+  assert.equal(notebookDisplayName('hermes'), 'Home AI');
+  assert.equal(notebookDisplayName('hermes', 'Hermes Mobile'), 'Home AI');
   assert.equal(notebookDisplayName('custom', '家庭资料'), '家庭资料');
 });
 
@@ -47,7 +48,7 @@ test('app workspace includes readable notebook fallback rows', async () => {
   assert.equal(response.status, 200);
   const notebooks = new Map(response.json.notebooks.map((notebook) => [notebook.id, notebook.name]));
   assert.equal(notebooks.get('inbox'), '收件箱');
-  assert.equal(notebooks.get('hermes'), 'Hermes Mobile');
+  assert.equal(notebooks.get('hermes'), 'Home AI');
 });
 
 function fakePluginService() {
