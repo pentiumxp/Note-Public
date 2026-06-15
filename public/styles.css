@@ -1,5 +1,6 @@
 :root {
   color-scheme: light;
+  --note-font-scale: 1;
   --bg: #f4f5f0;
   --surface: #ffffff;
   --surface-soft: #f7f8f4;
@@ -193,7 +194,9 @@ body {
   overflow-x: hidden;
   background: var(--bg);
   color: var(--ink);
-  font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+  font-size: calc(16px * var(--note-font-scale));
+  line-height: 1.45;
+  font-family: inherit;
   letter-spacing: 0;
 }
 
@@ -267,9 +270,8 @@ button {
 
 .account-card {
   display: grid;
-  grid-template-columns: 42px 1fr;
+  grid-template-columns: 1fr;
   align-items: center;
-  gap: 10px;
 }
 
 .avatar {
@@ -406,7 +408,7 @@ button {
 
 .home-topline {
   display: grid;
-  grid-template-columns: 44px 1fr auto;
+  grid-template-columns: 1fr auto;
   align-items: center;
   gap: 12px;
 }
@@ -637,11 +639,11 @@ h2 {
 }
 
 .note-row-title {
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 850;
   line-height: 1.3;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   white-space: normal;
   overflow: hidden;
@@ -649,6 +651,7 @@ h2 {
 }
 
 .note-row-snippet {
+  display: none;
   margin-top: 8px;
   color: var(--muted);
   line-height: 1.45;
@@ -1514,7 +1517,7 @@ h2 {
   }
 
   html[data-embed="hermes"] .note-row-title {
-    font-size: 16px;
+    font-size: 1rem;
     line-height: 1.25;
   }
 

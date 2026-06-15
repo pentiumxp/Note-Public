@@ -1,5 +1,39 @@
 # Handoff
 
+## 2026-06-15 Note Compact List And Host Font Sync
+
+- Status: local source validated; not committed or deployed in this turn.
+- UI changes:
+  - `public/index.html` removes the visible `许` avatar text from both the
+    desktop account card and mobile Note list header.
+  - `public/app.js` stops rendering `.note-row-snippet`, so the Note list no
+    longer displays note body/summary rows.
+  - `public/styles.css` changes Note list titles to a three-line clamp.
+  - `public/app.js` and `public/styles.css` apply host-provided
+    `pluginFontSize` / `fontSize` through `--note-font-scale`, and accept the
+    host-provided `fontFamily` without appending a plugin-local fallback stack.
+  - `public/index.html` bumps both `styles.css` and `app.js` query strings to
+    `20260615-note-compact-v1`.
+  - `tests/home-toolbar-ui.test.js` covers the removed avatar text, hidden body
+    rows, three-line title clamp, and host font inheritance hooks.
+- Validation passed:
+  - `npm run check`
+  - `npm run check:architecture`
+  - `npm run privacy`
+  - `node --test tests/home-toolbar-ui.test.js`
+  - Home AI center check:
+    `node tests/architecture-code-test-harness-map.test.js`
+  - `git diff --check`
+- Static readback:
+  - local HTML no longer contains visible `>许<`;
+  - `public/app.js` no longer contains `.note-row-snippet` rendering or the
+    unused snippet helper;
+  - CSS and JS query versions both read `20260615-note-compact-v1`.
+- Privacy:
+  - No raw workspace key, registration key, launch token, cookie, attachment
+    bytes, full note body, screenshot, password, or long log was intentionally
+    stored.
+
 ## 2026-06-15 Note List Header And Title Clamp
 
 - Status: committed, pushed, and deployed to Mac production.

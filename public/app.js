@@ -25,6 +25,14 @@ const NOTE_LIST_INITIAL_LIMIT = 120;
 const NOTE_LIST_BATCH_SIZE = 80;
 const NOTE_LIST_SCROLL_THRESHOLD = 900;
 const PLUGIN_APPEARANCE_STORAGE_KEY = 'note.plugin.appearance';
+const PLUGIN_FONT_SIZE_SCALE = {
+  small: 0.92,
+  default: 1,
+  standard: 1,
+  large: 1.08,
+  xlarge: 1.16,
+  xxlarge: 1.24
+};
 const APP_LAUNCH_TOKEN = readAppLaunchToken();
 let renderedNoteLimit = NOTE_LIST_INITIAL_LIMIT;
 
@@ -220,12 +228,17 @@ function initializePluginAppearanceFromUrl() {
     appearance: params.get('appearance'),
     dark: params.get('dark')
   });
+  const fontSize = normalizePluginFontSize(params.get('pluginFontSize'));
+  if (mode || fontSize) {
+    storePluginAppearance({ theme: mode, fontSize });
+  }
   if (mode) {
-    storePluginAppearance({ theme: mode });
     setNoteTheme(hermesParentEffectiveTheme() || mode);
   }
-  if (params.has('pluginTheme')) {
+  applyPluginFontSize(fontSize);
+  if (params.has('pluginTheme') || params.has('pluginFontSize')) {
     params.delete('pluginTheme');
+    params.delete('pluginFontSize');
     const query = params.toString();
     const nextUrl = `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash || ''}`;
     window.history.replaceState({}, document.title, nextUrl);
@@ -276,9 +289,9 @@ function hermesParentEffectiveTheme() {
 function storePluginAppearance(appearance) {
   try {
     const mode = normalizeThemeMode({ theme: appearance?.theme });
-    if (mode) {
-      window.sessionStorage.setItem(PLUGIN_APPEARANCE_STORAGE_KEY, JSON.stringify({ theme: mode }));
-    }
+    const fontSize = normalizePluginFontSize(appearance?.fontSize);
+    if (!mode && !fontSize) return;
+    window.sessionStorage.setItem(PLUGIN_APPEARANCE_STORAGE_KEY, JSON.stringify({ theme: mode, fontSize }));
   } catch {
     // Session storage can be unavailable in strict embedded contexts; DOM theme is already applied.
   }
@@ -289,7 +302,8 @@ function readPluginAppearance() {
     const raw = window.sessionStorage.getItem(PLUGIN_APPEARANCE_STORAGE_KEY) || '';
     const parsed = raw ? JSON.parse(raw) : null;
     const mode = normalizeThemeMode({ theme: parsed?.theme });
-    return mode ? { theme: mode } : null;
+    const fontSize = normalizePluginFontSize(parsed?.fontSize);
+    return mode || fontSize ? { theme: mode, fontSize } : null;
   } catch {
     return null;
   }
@@ -306,6 +320,9 @@ function syncPluginHostAppearance() {
   if (appearance?.theme) {
     setNoteTheme(appearance.theme);
   }
+  if (appearance?.fontSize) {
+    applyPluginFontSize(appearance.fontSize);
+  }
 }
 
 function isTrustedHermesMessage(event) {
@@ -318,15 +335,20 @@ function isTrustedHermesMessage(event) {
 function applyHermesTheme(message) {
   const root = document.documentElement;
   const theme = normalizeHermesTheme(message);
+  if (theme.mode || theme.fontSize) {
+    storePluginAppearance({ theme: theme.mode, fontSize: theme.fontSize });
+  }
   if (theme.mode) {
-    storePluginAppearance({ theme: theme.mode });
     setNoteTheme(theme.mode);
+  }
+  if (theme.fontSize) {
+    applyPluginFontSize(theme.fontSize);
   }
   if (theme.density === 'compact') {
     root.style.setProperty('--line', '#d6ddd4');
   }
   if (typeof theme.fontFamily === 'string' && theme.fontFamily.length < 120) {
-    document.body.style.fontFamily = `${theme.fontFamily}, "Microsoft YaHei", Arial, sans-serif`;
+    document.body.style.fontFamily = theme.fontFamily;
   }
 }
 
@@ -340,13 +362,28 @@ function normalizeHermesTheme(message = {}) {
     appearance: message.appearance || nested.appearance || payload.appearance,
     dark: message.dark ?? message.darkMode ?? message.isDarkMode ?? nested.dark ?? nested.darkMode ?? nested.isDarkMode ?? payload.dark ?? payload.darkMode ?? payload.isDarkMode,
     density: message.density || nested.density || payload.density,
+    fontSize: message.fontSize || nested.fontSize || payload.fontSize,
     fontFamily: message.fontFamily || nested.fontFamily || payload.fontFamily
   };
   return {
     mode: normalizeThemeMode(theme),
     density: theme.density,
+    fontSize: normalizePluginFontSize(theme.fontSize),
     fontFamily: theme.fontFamily
   };
+}
+
+function normalizePluginFontSize(value) {
+  const id = String(value || '').trim().toLowerCase();
+  return Object.prototype.hasOwnProperty.call(PLUGIN_FONT_SIZE_SCALE, id) ? id : '';
+}
+
+function applyPluginFontSize(value) {
+  const id = normalizePluginFontSize(value);
+  if (!id) return;
+  const scale = PLUGIN_FONT_SIZE_SCALE[id] || 1;
+  document.documentElement.dataset.fontSize = id;
+  document.documentElement.style.setProperty('--note-font-scale', String(scale));
 }
 
 function normalizeThemeMode(input = {}) {
@@ -757,7 +794,6 @@ function renderNoteList() {
     button.innerHTML = `
       <div class="note-main">
         <div class="note-row-title">${escapeHtml(note.title || '无标题笔记')}</div>
-        <div class="note-row-snippet">${escapeHtml(textFromHtml(note.body) || '空白笔记')}</div>
         <div class="note-row-meta">
           <span>${formatDate(note.updatedAt)}</span>
           ${note.shortcut ? '<span class="meta-chip">星标</span>' : ''}
@@ -772,14 +808,6 @@ function renderNoteList() {
     }
     if ((note.attachments || []).length) {
       button.querySelector('.note-row-meta .meta-chip:last-child')?.remove();
-    }
-    const snippet = button.querySelector('.note-row-snippet');
-    const listSnippet = noteListSnippetText(note);
-    if (snippet && listSnippet) {
-      snippet.textContent = listSnippet;
-    }
-    if (snippet && !listSnippet) {
-      snippet.remove();
     }
     button.addEventListener('click', () => {
       if (row.dataset.swipeSuppressClick === '1') {
@@ -837,17 +865,7 @@ function updateRenderedNoteRow(note) {
   const row = elements.noteList.querySelector(`.note-swipe-row[data-note-id="${cssEscape(note.id)}"]`);
   if (!row) return;
   const title = row.querySelector('.note-row-title');
-  const snippet = row.querySelector('.note-row-snippet');
   if (title) title.textContent = note.title || 'Untitled note';
-  if (snippet) snippet.textContent = noteListSnippetText(note);
-}
-
-function noteListSnippetText(note) {
-  const text = (textFromHtml(note.body) || note.snippet || '').replace(/\s+/g, ' ').trim();
-  if (!text) return '';
-  const compact = text.replace(/[\s·,，.。;；:：、]+/g, '');
-  if (/^(附件|图片|文件)+$/u.test(compact)) return '';
-  return text;
 }
 
 function buildNoteListMediaRail(note) {
