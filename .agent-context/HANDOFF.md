@@ -1,5 +1,30 @@
 # Handoff
 
+## 2026-06-15 Note List Header And Title Clamp
+
+- Status: local source validated; not deployed in this turn.
+- UI changes:
+  - `public/styles.css` hides `.list-toolbar`, so the note list no longer
+    displays the visible `最近更新` sort label above the list.
+  - `public/styles.css` changes `.note-row-title` from single-line truncation
+    to a two-line WebKit clamp with normal wrapping.
+  - `public/index.html` bumps the stylesheet query string to
+    `20260615-note-title-v1`.
+  - `tests/home-toolbar-ui.test.js` now asserts the hidden toolbar and two-line
+    title CSS rules.
+- Validation passed:
+  - `npm run check`
+  - `npm run check:architecture`
+  - `npm run privacy`
+  - `node --test tests/home-toolbar-ui.test.js`
+  - Home AI center check:
+    `node tests/architecture-code-test-harness-map.test.js`
+  - `git diff --check`
+- Privacy:
+  - No raw workspace key, registration key, launch token, cookie, attachment
+    bytes, full note body, screenshot, password, or long log was intentionally
+    stored.
+
 ## 2026-06-12 Dark Theme Preview Polish
 
 - Status: local source validated; prepared for private/public push.

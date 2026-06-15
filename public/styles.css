@@ -505,13 +505,7 @@ button {
 }
 
 .list-toolbar {
-  min-height: 54px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 12px;
-  padding: 8px 18px;
-  border-bottom: 1px solid var(--line);
+  display: none;
 }
 
 h1,
@@ -645,7 +639,11 @@ h2 {
 .note-row-title {
   font-size: 16px;
   font-weight: 850;
-  white-space: nowrap;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
   overflow: hidden;
   text-overflow: ellipsis;
 }
