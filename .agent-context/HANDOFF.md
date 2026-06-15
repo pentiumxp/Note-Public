@@ -2,7 +2,8 @@
 
 ## 2026-06-15 Note Home AI Notebook Display Name
 
-- Status: implementation validated locally; commit/deploy/data repair in progress.
+- Status: committed, pushed, deployed to Mac production, and production
+  notebook metadata repaired.
 - Product/data rule:
   - The stable system notebook id remains `hermes` for host save-to-Note
     compatibility.
@@ -32,10 +33,38 @@
   - `git diff --check`
   - Deploy plan:
     `npm run --silent deploy:macos -- --plugin note --json`
-- Production note before repair:
+- Commit/push:
+  - `e723a32` (`修正 Note 系统笔记本名称`) pushed to `origin/main` and
+    `public/main`.
+- Production deployment:
+  - deployed with:
+    `npm run --silent deploy:macos -- --plugin note --execute --json`
+  - source ref: clean commit `e723a320abbe`;
+  - production target: `/Users/hermes-host/HermesMobile/plugins/note`;
+  - backup:
+    `/Users/hermes-host/HermesMobile/backups/deploy/20260615T084040Z-plugin-note-manual`;
+  - deploy preserved `data/` and `runtime/`, restored `hermes-host:staff`,
+    restarted `system/com.hermesmobile.plugin.note`, and passed the Note
+    manifest health check.
+- Production data repair:
   - Metadata-only query showed `id='hermes'` rows named `Hermes Mobile` in
     four workspaces: `note:owner`, `note:weixin_stephen`,
     `note:weixin_wuping`, and `note:xjz`.
+  - SQLite online backup created:
+    `/Users/hermes-host/HermesMobile/backups/data-repair/20260615T084214Z-note-hermes-notebook-name.sqlite3`
+  - Updated exactly 4 `notebooks` metadata rows from `Hermes Mobile` to
+    `Home AI`; note rows and `notebook_id` values were not changed.
+  - `PRAGMA quick_check` returned `ok`.
+- Production readback:
+  - deployed source contains `hermes: 'Home AI'` and
+    `isLegacySystemNotebookName`;
+  - production DB now shows `id='hermes'` rows named `Home AI` for
+    `note:owner`, `note:weixin_stephen`, `note:weixin_wuping`, and `note:xjz`;
+  - `http://127.0.0.1:4181/api/v1/hermes/plugin/manifest` returned plugin id
+    `note`.
+- Evidence ledger:
+  - appended test and deploy records to
+    `$HOME/.homeai-qa/note-evidence-ledger.jsonl`.
 - Privacy:
   - No raw note body, attachment content, access key, launch token, cookie,
     password, or long private log was intentionally stored.
