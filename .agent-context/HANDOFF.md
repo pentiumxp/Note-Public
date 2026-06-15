@@ -2,7 +2,7 @@
 
 ## 2026-06-15 Note Compact List And Host Font Sync
 
-- Status: local source validated; not committed or deployed in this turn.
+- Status: committed, pushed, and deployed to Mac production.
 - UI changes:
   - `public/index.html` removes the visible `许` avatar text from both the
     desktop account card and mobile Note list header.
@@ -23,7 +23,39 @@
   - `node --test tests/home-toolbar-ui.test.js`
   - Home AI center check:
     `node tests/architecture-code-test-harness-map.test.js`
+  - Home AI deploy checks:
+    `node --check scripts/deploy-macos-production.js`,
+    `node tests/macos-production-deploy-script.test.js`, and
+    `node tests/production-status-smoke-harness.test.js`
   - `git diff --check`
+- Commit/push:
+  - `3fc4abc` (`优化 Note 紧凑列表显示`) pushed to `origin/main` and
+    `public/main`.
+- Production deployment:
+  - deployed with:
+    `npm run --silent deploy:macos -- --plugin note --execute --json`
+  - source ref: clean commit `3fc4abc7cd58`;
+  - production target: `/Users/hermes-host/HermesMobile/plugins/note`;
+  - backup:
+    `/Users/hermes-host/HermesMobile/backups/deploy/20260615T032812Z-plugin-note-manual`;
+  - deploy plan preserved `data/` and `runtime/`, restored
+    `hermes-host:staff`, restarted `system/com.hermesmobile.plugin.note`, and
+    passed the Note manifest health check.
+- Production readback:
+  - `http://127.0.0.1:4181/` serves both
+    `styles.css?v=20260615-note-compact-v1` and
+    `app.js?v=20260615-note-compact-v1`;
+  - production HTML no longer contains visible `>许<`;
+  - production CSS contains `--note-font-scale`, body `font-family: inherit`,
+    `.note-row-title` `-webkit-line-clamp: 3`, and
+    `.note-row-snippet { display: none; }`;
+  - production JS handles `pluginFontSize`, applies host `fontFamily`
+    directly, no longer renders `.note-row-snippet`, and no longer contains
+    `noteListSnippetText`;
+  - production manifest readback returned plugin id `note`.
+- Evidence ledger:
+  - appended test, deploy, and production smoke records to
+    `$HOME/.homeai-qa/note-evidence-ledger.jsonl`.
 - Static readback:
   - local HTML no longer contains visible `>许<`;
   - `public/app.js` no longer contains `.note-row-snippet` rendering or the
