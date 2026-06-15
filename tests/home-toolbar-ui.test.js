@@ -28,8 +28,17 @@ test('home toolbar removes large quick-create entries', () => {
   assert.match(appJs, /pluginFontSize/);
   assert.match(appJs, /fontFamily = theme\.fontFamily/);
   assert.match(html, /id="refresh-button"[\s\S]*aria-label="刷新"/);
+  assert.match(html, /data-filter-shortcut="shortcuts"[\s\S]*aria-label="重要"[\s\S]*aria-pressed="false"/);
+  assert.match(html, /data-filter-shortcut="attachments"[\s\S]*aria-label="含图"[\s\S]*aria-pressed="false"/);
+  assert.match(html, /data-filter-shortcut="tasks"[\s\S]*aria-label="待办"[\s\S]*aria-pressed="false"/);
   assert.match(appJs, /refreshButton:\s*document\.querySelector\('#refresh-button'\)/);
   assert.match(appJs, /triggerWorkspaceRefresh/);
+  assert.match(appJs, /selectedFilter\.type === nextType \? \{ type: 'all' \} : \{ type: nextType \}/);
+  assert.match(appJs, /document\.querySelectorAll\('\[data-filter-shortcut\]'\)\.forEach/);
+  assert.match(appJs, /button\.setAttribute\('aria-pressed', selected \? 'true' : 'false'\)/);
+  assert.match(css, /\.home-search button\.is-selected\s*\{[\s\S]*?background:\s*var\(--green\);/);
+  assert.match(css, /\.home-search button\.is-selected\s*\{[\s\S]*?color:\s*#ffffff;/);
+  assert.match(css, /:root\[data-theme="dark"\] \.home-search button\.is-selected\s*\{[\s\S]*?color:\s*#000000;/);
   assert.match(css, /\.mobile-title\s*\{[\s\S]*?white-space:\s*nowrap;/);
   assert.match(css, /\.mobile-title\s*\{[\s\S]*?writing-mode:\s*horizontal-tb;/);
   assert.match(css, /@media \(max-width: 420px\)[\s\S]*?\.home-topline\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) auto;/);

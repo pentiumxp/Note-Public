@@ -1,5 +1,42 @@
 # Handoff
 
+## 2026-06-15 Note Filter Shortcut Toggle State
+
+- Status: validated locally; commit/deploy in progress.
+- UI changes:
+  - Mobile Note list shortcut filters (`重要`, `含图`, `待办`) now toggle off
+    when the currently selected shortcut filter is tapped again, returning to
+    `all`.
+  - Shortcut filter buttons now sync `is-selected` and `aria-pressed`.
+  - Selected shortcut filter icons now use a stronger selected color state in
+    both light and dark themes.
+  - `public/index.html` bumps both `styles.css` and `app.js` query strings to
+    `20260615-filter-toggle-v1`.
+- Changed files:
+  - `public/index.html`
+  - `public/app.js`
+  - `public/styles.css`
+  - `tests/home-toolbar-ui.test.js`
+- Validation passed so far:
+  - `node --check public/app.js`
+  - `node --check tests/home-toolbar-ui.test.js`
+  - `node --test tests/home-toolbar-ui.test.js`
+  - `npm run check`
+  - `npm run check:architecture`
+  - `npm run privacy`
+  - `npm test`
+  - Home AI center: `node tests/architecture-code-test-harness-map.test.js`
+  - Home AI deploy checks:
+    `node --check scripts/deploy-macos-production.js`,
+    `node tests/macos-production-deploy-script.test.js`, and
+    `node tests/production-status-smoke-harness.test.js`
+  - Deploy plan:
+    `npm run --silent deploy:macos -- --plugin note --json`
+  - `git diff --check`
+- Privacy:
+  - No raw note body, attachment content, access key, launch token, cookie,
+    password, or long private log was intentionally stored.
+
 ## 2026-06-15 Note Home AI Notebook Display Name
 
 - Status: committed, pushed, deployed to Mac production, and production

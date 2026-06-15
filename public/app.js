@@ -111,7 +111,8 @@ function wireEvents() {
 
   document.querySelectorAll('[data-filter-shortcut]').forEach((button) => {
     button.addEventListener('click', () => {
-      selectedFilter = { type: button.dataset.filterShortcut };
+      const nextType = button.dataset.filterShortcut;
+      selectedFilter = selectedFilter.type === nextType ? { type: 'all' } : { type: nextType };
       setSearch('');
       resetNoteListWindow();
       render();
@@ -1835,5 +1836,10 @@ function titleForFilter() {
 function markFilterButton() {
   document.querySelectorAll('[data-filter]').forEach((button) => {
     button.classList.toggle('is-selected', button.dataset.filter === selectedFilter.type);
+  });
+  document.querySelectorAll('[data-filter-shortcut]').forEach((button) => {
+    const selected = button.dataset.filterShortcut === selectedFilter.type;
+    button.classList.toggle('is-selected', selected);
+    button.setAttribute('aria-pressed', selected ? 'true' : 'false');
   });
 }

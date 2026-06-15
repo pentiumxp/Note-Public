@@ -146,6 +146,12 @@
   border-color: #1f7a50;
 }
 
+:root[data-theme="dark"] .home-search button.is-selected {
+  background: var(--green);
+  color: #000000;
+  box-shadow: inset 0 0 0 2px var(--green-dark), 0 0 0 1px rgba(126, 240, 178, 0.34);
+}
+
 :root[data-theme="dark"] .sheet-backdrop,
 :root[data-theme="dark"] .image-preview-backdrop {
   background: rgba(0, 0, 0, 0.82);
@@ -478,6 +484,14 @@ button {
   border-radius: 50%;
   background: var(--surface-soft);
   color: var(--muted);
+  font-weight: 800;
+  transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.home-search button.is-selected {
+  background: var(--green);
+  color: #ffffff;
+  box-shadow: inset 0 0 0 2px var(--green-dark), 0 0 0 1px rgba(17, 138, 69, 0.18);
 }
 
 .sheet-grid small {
