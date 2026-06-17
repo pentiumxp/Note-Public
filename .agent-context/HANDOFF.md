@@ -1,5 +1,23 @@
 # Handoff
 
+## 2026-06-17 Note Architecture Gates Stop Using Line Budgets
+
+- Status: local changes only; not committed, pushed, or deployed from this turn.
+- User-level platform direction: plugin architecture gates should not use
+  physical line counts as hard limits because that encourages blank-line removal
+  and one-line helper compression without improving structure.
+- Changed:
+  - `scripts/check-architecture.js` now checks route/service ownership,
+    stable factories, forbidden auth/SQLite ownership regressions, and reference
+    persistence delegation instead of service-first line budgets.
+  - `docs/HERMES_PLUGIN_HARNESS.md` and
+    `docs/REFERENCE_GRAPH_ALIGNMENT_PLAN.md` now describe structural ownership
+    checks instead of line budgets.
+  - `.agent-context/PROJECT_CONTEXT.md` was aligned with the new durable rule.
+- Validation:
+  - `npm run check:architecture` passed.
+  - `git diff --check` passed.
+
 ## 2026-06-15 Note Filter Shortcut Toggle State
 
 - Status: committed, pushed, and deployed to Mac production.

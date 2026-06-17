@@ -40,7 +40,7 @@ Create a maintainable notes project that functionally recreates the core Yinxian
 - Platform-level deployment, MCP/schema closure, mobile visual evidence, and Reference / Memory Graph rules live in `C:\Users\xuxin\Documents\Agent\docs\...`; Note-local docs should record only Note-specific facts and must not redefine the central contract.
 - Reference / Memory Graph integration is H1/P1 architecture work. Note cross-plugin links must conform to the central Reference / Memory Graph V1 contract instead of introducing ad-hoc reference formats.
 - Note-local Reference Graph V1 slice uses `src/stores/sqlite-reference-graph-schema.js`, `src/stores/sqlite-reference-graph-store.js`, `src/services/reference-graph-service.js`, `src/services/note-reference-service.js`, and `src/server-routes/reference-api-routes.js`.
-- `src/server-routes/hermes-plugin-routes.js` is a route compositor. App workspace, notes API, and reference API behavior must stay in route groups/services and remain covered by `scripts/check-architecture.js` line budgets.
+- `src/server-routes/hermes-plugin-routes.js` is a route compositor. App workspace, notes API, and reference API behavior must stay in route groups/services and remain covered by `scripts/check-architecture.js` structural ownership checks.
 
 ## Verification Gates
 

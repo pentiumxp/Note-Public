@@ -133,4 +133,4 @@ They cover:
 - invalid relation rejection;
 - bounded Note `reference_get` and `reference_summarize`;
 - MCP local tool names without `mcp_note_` pre-prefixing;
-- service-first route line budgets.
+- service-first route ownership checks.

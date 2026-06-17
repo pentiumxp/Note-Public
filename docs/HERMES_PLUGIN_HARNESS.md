@@ -37,7 +37,7 @@ git diff --check
 | Reference Graph SQLite tables, indexes, workspace isolation, and idempotency | `tests/reference-graph-store.test.js` |
 | Note link service creates Note-to-plugin links, lists backlinks, rejects invalid relations, and keeps outputs bounded | `tests/note-reference-service.test.js` |
 | Reference API routes are scoped to the bound workspace and expose Note `reference_*` contract without note body | `tests/reference-api-routes.test.js` |
-| Service-first route files stay below line budgets and main Hermes route delegates app/notes/reference behavior | `scripts/check-architecture.js` |
+| Service-first route modules expose stable factories, avoid forbidden ownership regressions, and main Hermes route delegates app/notes/reference behavior | `scripts/check-architecture.js` |
 | Embedded postMessage contract is bounded | `tests/embedded-contract.test.js` |
 | Embedded `embed=hermes` layout uses iframe-relative height and owns only Note bottom nav spacing | `tests/embedded-layout.test.js`, Playwright geometry smoke |
 | Swipe delete is visually hidden before swipe, reachable only after short swipe, and the embedded list shows dense rows after scrolling | `scripts/visual-swipe-delete-harness.js` |

@@ -67,23 +67,40 @@ if (fs.existsSync(path.join(process.cwd(), 'src', 'server-routes', 'hermes-plugi
   }
 }
 
-for (const [file, maxLines] of Object.entries({
-  'src/server-routes/hermes-plugin-routes.js': 220,
-  'src/server-routes/app-workspace-routes.js': 140,
-  'src/server-routes/note-api-routes.js': 220,
-  'src/server-routes/reference-api-routes.js': 160,
-  'src/services/reference-graph-service.js': 280,
-  'src/services/note-reference-service.js': 320,
-  'src/stores/sqlite-reference-graph-store.js': 420
+const architectureFiles = {
+  hermesRoutes: readOptional('src/server-routes/hermes-plugin-routes.js'),
+  appRoutes: readOptional('src/server-routes/app-workspace-routes.js'),
+  noteRoutes: readOptional('src/server-routes/note-api-routes.js'),
+  referenceRoutes: readOptional('src/server-routes/reference-api-routes.js'),
+  graphService: readOptional('src/services/reference-graph-service.js'),
+  noteReferenceService: readOptional('src/services/note-reference-service.js'),
+  graphStore: readOptional('src/stores/sqlite-reference-graph-store.js')
+};
+
+assertContains(architectureFiles.hermesRoutes, 'function createHermesPluginRoutes', 'Hermes route compositor must expose createHermesPluginRoutes');
+assertContains(architectureFiles.appRoutes, 'function createAppWorkspaceRoutes', 'App workspace routes must expose createAppWorkspaceRoutes');
+assertContains(architectureFiles.noteRoutes, 'function createNoteApiRoutes', 'Note API routes must expose createNoteApiRoutes');
+assertContains(architectureFiles.referenceRoutes, 'function createReferenceApiRoutes', 'Reference API routes must expose createReferenceApiRoutes');
+assertContains(architectureFiles.graphService, 'function createReferenceGraphService', 'Reference graph behavior must stay in createReferenceGraphService');
+assertContains(architectureFiles.noteReferenceService, 'function createNoteReferenceService', 'Note reference behavior must stay in createNoteReferenceService');
+assertContains(architectureFiles.graphStore, 'function createSqliteReferenceGraphStore', 'Reference graph persistence must stay in createSqliteReferenceGraphStore');
+
+for (const [name, source] of Object.entries({
+  'app workspace routes': architectureFiles.appRoutes,
+  'note API routes': architectureFiles.noteRoutes,
+  'reference API routes': architectureFiles.referenceRoutes
 })) {
-  const fullPath = path.join(process.cwd(), file);
-  if (!fs.existsSync(fullPath)) {
-    continue;
+  if (/DatabaseSync|createHash|timingSafeEqual/.test(source)) {
+    failures.push(`${name} must not own SQLite setup or auth hashing logic`);
   }
-  const lines = fs.readFileSync(fullPath, 'utf8').split(/\r?\n/).length;
-  if (lines > maxLines) {
-    failures.push(`${file} exceeds service-first line budget: ${lines}/${maxLines}`);
-  }
+}
+
+if (/reference_edges|reference_object_refs/.test(architectureFiles.referenceRoutes)) {
+  failures.push('Reference API routes must delegate reference graph persistence to stores/services');
+}
+
+if (/req\.on\(['"]data['"]/.test(architectureFiles.graphService) || /sendJson|writeHead/.test(architectureFiles.graphService)) {
+  failures.push('Reference graph service must not own HTTP request or response handling');
 }
 
 if (fs.existsSync(path.join(process.cwd(), 'src', 'stores', 'sqlite-note-store.js'))) {
@@ -148,3 +165,14 @@ if (failures.length) {
 }
 
 console.log('Architecture check passed.');
+
+function readOptional(file) {
+  const fullPath = path.join(process.cwd(), file);
+  return fs.existsSync(fullPath) ? fs.readFileSync(fullPath, 'utf8') : '';
+}
+
+function assertContains(source, snippet, message) {
+  if (!source.includes(snippet)) {
+    failures.push(message);
+  }
+}
