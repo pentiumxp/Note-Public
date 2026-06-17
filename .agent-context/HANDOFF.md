@@ -1,8 +1,62 @@
 # Handoff
 
+## 2026-06-17 Note Startup No Demo Flicker
+
+- Status: committed, pushed, and deployed to Mac production.
+- UI behavior:
+  - Embedded/launch-token Note startup no longer renders local demo seed notes
+    before app workspace data loads.
+  - In embedded app workspace mode, initial state is empty and the list shows
+    `正在载入笔记` until `/api/v1/app/workspace` returns.
+  - Standalone non-host mode still keeps the local demo seed fallback.
+  - `public/index.html` bumps both `styles.css` and `app.js` query strings to
+    `20260617-startup-no-demo-v1`.
+- Changed files:
+  - `public/index.html`
+  - `public/app.js`
+  - `tests/home-toolbar-ui.test.js`
+- Validation passed:
+  - `node --check public/app.js`
+  - `node --check tests/home-toolbar-ui.test.js`
+  - `node --test tests/home-toolbar-ui.test.js`
+  - `npm run check`
+  - `npm run check:architecture`
+  - `npm run privacy`
+  - Home AI center: `node tests/architecture-code-test-harness-map.test.js`
+  - Home AI deploy checks:
+    `node --check scripts/deploy-macos-production.js`,
+    `node tests/macos-production-deploy-script.test.js`, and
+    `node tests/production-status-smoke-harness.test.js`
+- Commit/push:
+  - `0ec643a` (`修复 Note 启动默认笔记闪现`) pushed to `origin/main` and
+    `public/main`.
+- Production deployment:
+  - deployed latest clean source ref `e7ff59f91245` with:
+    `npm run --silent deploy:macos -- --plugin note --execute --json`
+  - production target: `/Users/hermes-host/HermesMobile/plugins/note`;
+  - backup:
+    `/Users/hermes-host/HermesMobile/backups/deploy/20260617T154133Z-plugin-note-manual`;
+  - deploy preserved `data/` and `runtime/`, restored `hermes-host:staff`,
+    restarted `system/com.hermesmobile.plugin.note`, and passed the Note
+    manifest health check.
+- Production readback:
+  - `http://127.0.0.1:4181/` serves both
+    `styles.css?v=20260617-startup-no-demo-v1` and
+    `app.js?v=20260617-startup-no-demo-v1`;
+  - production JS contains `APP_WORKSPACE_MODE`, `emptyWorkspaceState`, and
+    `正在载入笔记`;
+  - demo seed `欢迎使用 Note` still exists only after the embedded-mode guard;
+  - production manifest readback returned plugin id `note`.
+- Evidence ledger:
+  - appended test and deploy records to
+    `$HOME/.homeai-qa/note-evidence-ledger.jsonl`.
+- Privacy:
+  - No raw note body, attachment content, access key, launch token, cookie,
+    password, or long private log was intentionally stored.
+
 ## 2026-06-17 Note Architecture Gates Stop Using Line Budgets
 
-- Status: local changes only; not committed, pushed, or deployed from this turn.
+- Status: committed, pushed, and included in the Mac production source deploy.
 - User-level platform direction: plugin architecture gates should not use
   physical line counts as hard limits because that encourages blank-line removal
   and one-line helper compression without improving structure.
@@ -17,6 +71,9 @@
 - Validation:
   - `npm run check:architecture` passed.
   - `git diff --check` passed.
+- Commit/push:
+  - `e7ff59f` (`调整 Note 架构检查规则`) pushed to `origin/main` and
+    `public/main`.
 
 ## 2026-06-15 Note Filter Shortcut Toggle State
 
