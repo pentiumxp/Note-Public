@@ -14,9 +14,12 @@ const attachmentIcons = {
 };
 
 const sessionObjectUrls = new Map();
+const APP_LAUNCH_TOKEN = readAppLaunchToken();
+const APP_WORKSPACE_MODE = isHermesPluginEmbed() || Boolean(APP_LAUNCH_TOKEN);
 const state = loadState();
 let selectedNoteId = state.notes[0]?.id || null;
 let selectedFilter = { type: 'all' };
+let appWorkspaceLoading = APP_WORKSPACE_MODE;
 const SWIPE_REVEAL_WIDTH = 104;
 const SWIPE_DELETE_WIDTH = 184;
 const SHEET_DISMISS_SWIPE_X = 58;
@@ -33,7 +36,6 @@ const PLUGIN_FONT_SIZE_SCALE = {
   xlarge: 1.16,
   xxlarge: 1.24
 };
-const APP_LAUNCH_TOKEN = readAppLaunchToken();
 let renderedNoteLimit = NOTE_LIST_INITIAL_LIMIT;
 
 initializeNoteTheme();
@@ -774,6 +776,10 @@ function renderTags() {
 }
 
 function renderNoteList() {
+  if (appWorkspaceLoading) {
+    elements.noteList.innerHTML = '<div class="empty-state">正在载入笔记</div>';
+    return;
+  }
   const allNotes = filteredNotes();
   const notes = allNotes.slice(0, renderedNoteLimit);
   elements.noteList.innerHTML = '';
@@ -1320,6 +1326,7 @@ async function refreshImportedWorkspace({ preserveSelection = false, applyInitia
       updatedAt: note.updatedAt,
       detailLoaded: false
     }));
+    appWorkspaceLoading = false;
     selectedNoteId = preserveSelection && state.notes.some((note) => note.id === previousSelectedNoteId)
       ? previousSelectedNoteId
       : null;
@@ -1330,8 +1337,10 @@ async function refreshImportedWorkspace({ preserveSelection = false, applyInitia
       applyInitialPluginRoute();
     }
   } catch (error) {
+    appWorkspaceLoading = false;
     elements.syncStatus.textContent = '本地数据加载失败';
     console.error(error);
+    render();
     if (applyInitialRoute) {
       applyInitialPluginRoute();
     }
@@ -1663,6 +1672,9 @@ function createNote({ title, body, notebookId }) {
 }
 
 function loadState() {
+  if (APP_WORKSPACE_MODE) {
+    return emptyWorkspaceState();
+  }
   const raw = localStorage.getItem(STORAGE_KEY);
   if (raw) {
     try {
@@ -1672,6 +1684,13 @@ function loadState() {
     }
   }
   return seedState();
+}
+
+function emptyWorkspaceState() {
+  return {
+    notebooks: [],
+    notes: []
+  };
 }
 
 function seedState() {

@@ -51,6 +51,13 @@ test('home toolbar removes large quick-create entries', () => {
   assert.match(css, /\.title-input\s*\{[\s\S]*?line-height:\s*1\.28;/);
   assert.match(css, /@media \(max-width: 1120px\)[\s\S]*?\.title-input\s*\{[\s\S]*?font-size:\s*22px;/);
   assert.match(appJs, /syncTitleInputHeight/);
+  assert.match(html, /styles\.css\?v=20260617-startup-no-demo-v1/);
+  assert.match(html, /app\.js\?v=20260617-startup-no-demo-v1/);
+  assert.match(appJs, /const APP_WORKSPACE_MODE = isHermesPluginEmbed\(\) \|\| Boolean\(APP_LAUNCH_TOKEN\);/);
+  assert.match(appJs, /if \(APP_WORKSPACE_MODE\) \{[\s\S]*?return emptyWorkspaceState\(\);[\s\S]*?\}/);
+  assert.match(appJs, /function emptyWorkspaceState\(\) \{[\s\S]*?notebooks: \[\],[\s\S]*?notes: \[\]/);
+  assert.match(appJs, /if \(appWorkspaceLoading\) \{[\s\S]*?正在载入笔记/);
+  assert.match(appJs, /appWorkspaceLoading = false;[\s\S]*?elements\.syncStatus\.textContent = `已载入 \$\{state\.notes\.length\} 条导入笔记`/);
   assert.doesNotMatch(html, />许</);
   assert.doesNotMatch(appJs, /note-row-snippet/);
 });
